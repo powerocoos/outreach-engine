@@ -1,0 +1,9 @@
+{
+  "name": "outreach-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --no-warnings --test test/logic.test.js test/worker.test.js",
+    "deploy": "wrangler deploy"
+  }
+}

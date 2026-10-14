@@ -1,0 +1,45 @@
+CREATE TABLE IF NOT EXISTS leads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company TEXT NOT NULL,
+  contact_email TEXT UNIQUE,
+  phone TEXT,
+  website TEXT,
+  city TEXT,
+  category TEXT,
+  hook_angle TEXT,
+  mobile_score INTEGER,
+  status TEXT NOT NULL DEFAULT 'new',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS touches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  lead_id INTEGER REFERENCES leads(id),
+  contact_email TEXT,
+  event TEXT NOT NULL,          -- sent | opened | clicked | replied | bounced | unsubscribed | booked
+  step INTEGER,
+  campaign TEXT,
+  raw TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_touches_event ON touches(event);
+CREATE INDEX IF NOT EXISTS idx_touches_email ON touches(contact_email);
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  lead_id INTEGER REFERENCES leads(id),
+  contact_email TEXT,
+  call_at TEXT,
+  held INTEGER NOT NULL DEFAULT 0,
+  won INTEGER NOT NULL DEFAULT 0,
+  value_usd INTEGER,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS media (
+  token TEXT PRIMARY KEY,         -- unguessable id in the public link
+  contact_email TEXT,
+  r2_key TEXT NOT NULL,
+  content_type TEXT NOT NULL DEFAULT 'video/mp4',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
