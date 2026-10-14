@@ -39,4 +39,6 @@ test("safeEqual", () => {
   assert.equal(safeEqual("abc", "abd"), false);
   assert.equal(safeEqual("abc", "abcd"), false);
   assert.equal(safeEqual(undefined, "x"), false);
+  assert.equal(safeEqual("", ""), false);            // unset secret must not accept an empty value
+  assert.equal(safeEqual(undefined, undefined), false);
 });

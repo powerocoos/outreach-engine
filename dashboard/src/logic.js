@@ -49,9 +49,11 @@ export function rate(n, d) {
 }
 
 // Constant-time string comparison for secrets.
+// An empty or missing value never matches, so an unset secret cannot be "guessed" with an empty string.
 export function safeEqual(a, b) {
   a = String(a || "");
   b = String(b || "");
+  if (!a || !b) return false;
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);

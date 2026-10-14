@@ -119,3 +119,13 @@ test("video upload -> view page logs event -> file served with range", async () 
   const s = await (await worker.fetch(new Request("https://x/api/stats", { headers: { authorization: basic } }), e, ctx)).json();
   assert.equal(s.totals.videoViews, 1);
 });
+
+test("unset secrets reject empty credentials", async () => {
+  const e = { DB: makeDb() };   // no secrets configured at all
+  const hook = await worker.fetch(new Request("https://x/webhook/instantly", { method: "POST", body: "{}" }), e, ctx);
+  assert.equal(hook.status, 401);
+  const dash = await worker.fetch(new Request("https://x/dashboard", { headers: { authorization: "Basic " + btoa("admin:") } }), e, ctx);
+  assert.equal(dash.status, 401);
+  const imp = await worker.fetch(new Request("https://x/api/leads", { method: "POST", body: "{}" }), e, ctx);
+  assert.equal(imp.status, 401);
+});
