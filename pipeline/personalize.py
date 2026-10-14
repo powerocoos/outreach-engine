@@ -12,14 +12,17 @@ import csv
 import json
 import os
 
+import brand
 from common import connect, http_request
 
 MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5-5")
 MAX_WORDS = 125
-SENDER = os.environ.get("SENDER_NAME", "Your Name")
-AGENCY = "Red Panda Digital"
+SENDER = brand.SENDER_NAME
+AGENCY = brand.BRAND_NAME
 
-SYSTEM_PROMPT = f"""You write cold outreach for {AGENCY}, a web design and local SEO agency.
+SYSTEM_PROMPT = f"""You write cold outreach as {brand.SENDER_NAME}, {brand.SENDER_TITLE} of {AGENCY}, a web
+design agency serving {brand.SERVICE_AREA}. Services: {brand.SERVICES}. The offer is a {brand.OFFER}.
+Write in first person ("I"), as one local professional writing to another.
 You will receive a business and a list of VERIFIED FINDINGS about its website.
 
 Hard rules:
@@ -28,8 +31,10 @@ Hard rules:
 - Pick the single most customer-relevant finding and build the message around it.
 - Each email is under {MAX_WORDS} words, conversational, no hype, no jargon, no emojis.
 - Each email ends with a soft, low-friction question (e.g. "Worth a quick look?").
-- Email 1: the problem and why it costs them calls. Email 2: one useful, specific fix
-  tied to the finding (no fake social proof). Email 3: short, polite break-up.
+- Email 1: one short line saying who you are ("I'm {brand.SENDER_NAME} with {AGENCY}"), then the
+  problem and why it costs them calls. Email 2: one useful, specific fix tied to the finding
+  (no fake social proof). Email 3: short, polite break-up that offers the {brand.OFFER}.
+- Never claim services, results, awards, or experience beyond the services listed above.
 - If "video_url" is provided, Email 1 must include that exact URL once, introduced as a short
   screen recording of how the site looks on a phone. If it is not provided, never mention a
   video, recording, or screen capture anywhere.
@@ -77,7 +82,8 @@ def template_draft(lead, findings, video_url=None):
     return {
         "angle": first,
         "subject": f"{c} on mobile",
-        "email1": (f"Hi there,\n\nI looked at {c}'s website while checking local options in {city}. "
+        "email1": (f"Hi there,\n\nI'm {brand.SENDER_NAME} with {brand.BRAND_NAME}. I looked at {c}'s "
+                   f"website while checking local options in {city}. "
                    f"{first}\n\nMost people searching for a contractor are on a phone, and they "
                    f"usually tap the next result instead of working around a problem like that."
                    f"{clip}\n\nWorth a quick look?"),
@@ -85,7 +91,7 @@ def template_draft(lead, findings, video_url=None):
                    f"mentioned is one of the first things I'd address. I can send the specific "
                    f"steps whether or not we ever talk.\n\nWant me to send them?"),
         "email3": (f"I'll stop here so I don't clutter your inbox. If {c} ever wants a second "
-                   f"opinion on the website, I'm glad to do a free 15-minute walkthrough.\n\n"
+                   f"opinion on the website, I'm glad to do a {brand.OFFER}.\n\n"
                    f"Should I close the file?"),
     }
 
@@ -142,6 +148,34 @@ def run(use_template):
         print(f"drafted {lead['company']}")
 
 
+INSTANTLY_COLUMNS = ["email", "first_name", "company_name", "website", "city", "category", "angle",
+                     "video_url", "subject", "email1", "email2", "email3", "sender_name",
+                     "sender_title", "brand_name", "brand_phone", "brand_website", "booking_link"]
+
+
+def export_instantly(path):
+    """CSV of approved leads for Instantly. Every column is usable as a {{variable}} in the sequence."""
+    conn = connect()
+    rows = conn.execute(
+        """SELECT l.email, l.company, l.website, l.city, l.category, d.angle, d.subject,
+                  d.email1, d.email2, d.email3, c.video_url
+           FROM drafts d JOIN leads l ON l.id=d.lead_id LEFT JOIN captures c ON c.lead_id=l.id
+           WHERE d.approved=1 AND l.email IS NOT NULL ORDER BY l.id"""
+    ).fetchall()
+    with open(path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(INSTANTLY_COLUMNS)
+        for r in rows:
+            w.writerow([r["email"], "", r["company"], r["website"], r["city"] or "", r["category"] or "",
+                        r["angle"], r["video_url"] or "", r["subject"], r["email1"], r["email2"],
+                        r["email3"], brand.SENDER_NAME, brand.SENDER_TITLE, brand.BRAND_NAME,
+                        brand.BRAND_PHONE, brand.BRAND_WEBSITE, brand.BOOKING_LINK])
+    print(f"Wrote {len(rows)} approved leads to {path}.")
+    gaps = brand.missing_for_sending()
+    if gaps:
+        print("Before sending, set in .env:", ", ".join(gaps))
+
+
 def export_review(path):
     conn = connect()
     rows = conn.execute(
@@ -160,5 +194,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--template", action="store_true")
     ap.add_argument("--export")
+    ap.add_argument("--export-instantly")
     args = ap.parse_args()
-    export_review(args.export) if args.export else run(args.template)
+    if args.export_instantly:
+        export_instantly(args.export_instantly)
+    elif args.export:
+        export_review(args.export)
+    else:
+        run(args.template)

@@ -1,4 +1,4 @@
-# Red Panda Digital outreach engine
+# Ocoos Web Consulting outreach engine
 
 Lead finder -> website audit -> Claude-written sequence (verified findings only) -> human review -> Instantly -> webhook -> dashboard + SMS alert.
 
@@ -13,6 +13,7 @@ python capture.py --limit 20            # phone-sized screen recording per lead 
 python upload_media.py                  # hosts each clip on the dashboard, saves its private link
 python personalize.py --template        # or without --template to use Claude; Email 1 links the clip only if one exists
 python personalize.py --export review.csv
+python brand.py                         # prints the signature and CAN-SPAM footer to paste into Instantly
 ```
 
 Review `review.csv`. Approve by setting `approved=1` in `data/outreach.db` (`UPDATE drafts SET approved=1 WHERE lead_id IN (...)`), then:
@@ -21,7 +22,7 @@ Review `review.csv`. Approve by setting `approved=1` in `data/outreach.db` (`UPD
 python push_to_dashboard.py
 ```
 
-Load the approved leads and their email1/2/3 into an Instantly campaign (3 steps, days 1/4/8, stop on reply).
+Run `python personalize.py --export-instantly instantly.csv` and import it into an Instantly campaign (3 steps, days 1/4/8, stop on reply). Every CSV column is a merge variable: use `{{email1}}`, `{{email2}}`, `{{email3}}` as the step bodies and `{{subject}}` as the subject. Business details (`BRAND_*`, `SENDER_*`, `OFFER`) come from `.env`.
 
 ## Deploy the dashboard (from `dashboard/`)
 

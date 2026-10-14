@@ -11,6 +11,7 @@ os.environ["OUTREACH_DB"] = os.path.join(_TMP, "e2e.db")  # must be set before i
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))
 
 import audit
+import brand
 import captions
 import capture
 import crawler
@@ -157,6 +158,27 @@ class EndToEndTests(unittest.TestCase):
         self.assertIn("https://dash.example/v/abc", d[0]["email1"])
         self.assertEqual(conn.execute("SELECT status FROM leads WHERE id=1").fetchone()[0], "drafted")
         self.assertEqual(conn.execute("SELECT status FROM leads WHERE id=2").fetchone()[0], "audited")
+
+    def test_branding_and_instantly_export(self):
+        import csv
+        d = personalize.template_draft(self.LEAD if hasattr(self, "LEAD") else {"company": "Cool Air", "city": "Gainesville"},
+                                       ["No tap-to-call."])
+        self.assertIn("Ocoos Web Consulting", d["email1"])
+        self.assertIn(brand.OFFER, d["email3"])
+        self.assertIn("Ocoos Web Consulting", personalize.SYSTEM_PROMPT)
+        self.assertNotIn("Red Panda", personalize.SYSTEM_PROMPT)
+        conn = connect()
+        conn.execute("UPDATE drafts SET approved=1")
+        conn.commit()
+        conn.close()
+        out = os.path.join(_TMP, "instantly.csv")
+        personalize.export_instantly(out)
+        rows = list(csv.DictReader(open(out)))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["brand_name"], "Ocoos Web Consulting")
+        self.assertEqual(rows[0]["company_name"], "Cool Air")
+        self.assertTrue(rows[0]["email1"].strip())
+        self.assertEqual(list(rows[0].keys()), personalize.INSTANTLY_COLUMNS)
 
 
 if __name__ == "__main__":

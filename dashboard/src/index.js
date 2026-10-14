@@ -13,7 +13,7 @@ function basicAuthOk(request, env) {
 const challenge = () =>
   new Response("Authentication required", {
     status: 401,
-    headers: { "www-authenticate": 'Basic realm="Red Panda outreach"' },
+    headers: { "www-authenticate": 'Basic realm="Ocoos outreach"' },
   });
 
 async function sendSms(env, body) {
@@ -195,7 +195,7 @@ h1{font-size:20px;margin:0 0 20px}h2{font-size:14px;color:var(--mut);text-transf
 .tile b{display:block;font-size:26px;color:var(--acc)}.tile span{color:var(--mut);font-size:13px}
 table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{color:var(--mut);font-weight:500;font-size:13px}
 </style></head><body>
-<h1>Red Panda outreach</h1><div id="app">Loading…</div>
+<h1>Ocoos outreach</h1><div id="app">Loading…</div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const tile=(n,l)=>'<div class="tile"><b>'+esc(n)+'</b><span>'+esc(l)+'</span></div>';
