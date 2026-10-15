@@ -34,3 +34,12 @@ image is a PNG are Facebook-only.
 
 ## Later: Google Business Profile
 The same drafts table can feed a third channel once Google approves Business Profile API access.
+
+## Instagram images
+
+Instagram only accepts a public https JPEG. When a blog post's featured image is not a JPEG (or is missing), the
+drafting job renders a branded 1080x1080 "NEW ON THE BLOG" card (`pipeline/social_image.py`, Poppins fonts in
+`pipeline/fonts/`), uploads it to the dashboard (`PUT /api/social-image/<id>`) and stores its public link
+(`/img/social/<id>.jpg`) as the post image. Facebook is unaffected: it posts the blog link and Facebook builds the
+preview from the blog page. Posts drafted before this change keep their original image; edit or re-queue them if
+Instagram is blocked.

@@ -120,5 +120,45 @@ class DryRunTests(unittest.TestCase):
         self.assertIn("Drafted", buf.getvalue())
 
 
+
+class ImageTests(unittest.TestCase):
+    def test_ig_image_ok(self):
+        self.assertTrue(social.ig_image_ok("https://x.com/a.jpg?format=1500w"))
+        self.assertTrue(social.ig_image_ok("https://x.com/a.JPEG"))
+        self.assertFalse(social.ig_image_ok("https://x.com/a.png"))
+        self.assertFalse(social.ig_image_ok("http://x.com/a.jpg"))
+        self.assertFalse(social.ig_image_ok(None))
+
+    def test_keeps_usable_jpeg_without_upload(self):
+        calls = []
+        post = {"title": "T", "link": "https://s/p", "image": "https://x.com/a.jpg"}
+        out = social.ensure_image(post, "https://d", "tok", uploader=lambda *a, **k: calls.append(a))
+        self.assertEqual(out, "https://x.com/a.jpg")
+        self.assertEqual(calls, [])
+
+    def test_png_gets_branded_card(self):
+        sent = {}
+        def up(url, **kw):
+            sent.update(url=url, **kw)
+            return 200, {}, {}, b"{}"
+        social.fetch_logo = lambda: None
+        post = {"title": "Google Ads for Local Businesses: Get Leads Without Waste", "link": "https://s/p", "image": "https://x.com/a.png"}
+        out = social.ensure_image(post, "https://d", "tok", uploader=up)
+        self.assertRegex(out, r"^https://d/img/social/[0-9a-f]{32}\.jpg$")
+        self.assertTrue(sent["body"].startswith(b"\xff\xd8\xff"))
+        self.assertEqual(sent["headers"]["Content-Type"], "image/jpeg")
+        self.assertTrue(sent["url"].startswith("https://d/api/social-image/"))
+
+    def test_upload_failure_keeps_original(self):
+        social.fetch_logo = lambda: None
+        post = {"title": "T", "link": "https://s/p", "image": "https://x.com/a.png"}
+        out = social.ensure_image(post, "https://d", "tok", uploader=lambda *a, **k: (500, {}, {}, b""))
+        self.assertEqual(out, "https://x.com/a.png")
+
+    def test_card_token_stable(self):
+        import social_image
+        self.assertEqual(social_image.card_token("u"), social_image.card_token("u"))
+        self.assertNotEqual(social_image.card_token("u"), social_image.card_token("v"))
+
 if __name__ == "__main__":
     unittest.main()

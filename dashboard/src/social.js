@@ -241,3 +241,25 @@ function load(){api("/api/social?status="+cur).then(function(r){return r.json()}
   j.posts.forEach(function(p){list.appendChild(card(p))})}).catch(function(e){document.getElementById("list").textContent="Failed to load: "+e})}
 load();
 </script></body></html>`;
+
+// ---- Generated post cards (JPEG) -----------------------------------------------
+// The pipeline renders a branded card when a blog post has no JPEG Instagram can use.
+// Upload (bearer): PUT /api/social-image/<32 hex>   Public: GET /img/social/<32 hex>.jpg
+const IMG_MAX = 5 * 1024 * 1024;
+
+export async function handleSocialImagePut(request, env, token) {
+  if (!bearerOk(request, env)) return json({ error: "unauthorized" }, 401);
+  if ((request.headers.get("content-type") || "") !== "image/jpeg") return json({ error: "image/jpeg only" }, 415);
+  const bytes = await request.arrayBuffer();
+  if (!bytes.byteLength || bytes.byteLength > IMG_MAX) return json({ error: "image must be 1 byte to 5 MB" }, 413);
+  const head = new Uint8Array(bytes.slice(0, 3));
+  if (head[0] !== 0xff || head[1] !== 0xd8 || head[2] !== 0xff) return json({ error: "not a JPEG" }, 415);
+  await env.MEDIA.put(`social/${token}.jpg`, bytes, { httpMetadata: { contentType: "image/jpeg" } });
+  return json({ ok: true, path: `/img/social/${token}.jpg` });
+}
+
+export async function handleSocialImageGet(env, token) {
+  const obj = await env.MEDIA.get(`social/${token}.jpg`);
+  if (!obj) return new Response("Not found", { status: 404 });
+  return new Response(obj.body, { headers: { "content-type": "image/jpeg", "cache-control": "public, max-age=86400" } });
+}

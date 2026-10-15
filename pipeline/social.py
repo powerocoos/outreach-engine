@@ -21,6 +21,7 @@ from email.utils import parsedate_to_datetime
 from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 
 import brand
+import social_image
 from common import http_request, require_env
 
 MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5-5")
@@ -29,6 +30,7 @@ MAX_AGE_DAYS = int(os.environ.get("SOCIAL_MAX_AGE_DAYS", "21"))
 MAX_PER_RUN = int(os.environ.get("SOCIAL_MAX_PER_RUN", "3"))
 FB_WORDS = (25, 110)
 IG_WORDS = (30, 130)
+LOGO_URL = os.environ.get("SOCIAL_LOGO_URL", "https://images.squarespace-cdn.com/content/v1/5dc50cc1afeeeb552425247c/d8489d11-b4c0-4699-abf0-75e870088b4f/Ocoos+Web+Consulting+Logo+01+-+smaller-min.png?format=500w")
 NS = {"content": "http://purl.org/rss/1.0/modules/content/", "media": "http://www.rssboard.org/media-rss"}
 
 SYSTEM_PROMPT = f"""You write social media posts for {brand.BRAND_NAME}, a web design agency serving {brand.SERVICE_AREA}.
@@ -195,6 +197,37 @@ def to_payload(post, draft):
     }
 
 
+def ig_image_ok(url):
+    """Instagram only takes a public https JPEG."""
+    return bool(url) and url.startswith("https://") and re.search(r"\.jpe?g(\?|$)", url, re.I) is not None
+
+
+def ensure_image(post, base, token, uploader=None):
+    """Return the image URL to store: the blog's own JPEG if Instagram can use it, else a branded card."""
+    if ig_image_ok(post["image"]):
+        return post["image"]
+    try:
+        card = social_image.render_card(post["title"], fetch_logo())
+        key = social_image.card_token(post["link"])
+        status, _, _, raw = (uploader or http_request)(
+            f"{base}/api/social-image/{key}", method="PUT", body=card, timeout=60,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "image/jpeg"})
+        if status != 200:
+            raise RuntimeError(f"upload returned {status}")
+        return f"{base}/img/social/{key}.jpg"
+    except Exception as e:  # never block a post over its picture
+        print(f"  could not make a card image: {e}", file=sys.stderr)
+        return post["image"]
+
+
+def fetch_logo():
+    try:
+        status, _, _, raw = http_request(LOGO_URL, timeout=20, max_bytes=2_000_000)
+        return raw if status == 200 else None
+    except Exception:
+        return None
+
+
 # ---- run -------------------------------------------------------------------------
 def main(argv=None):
     ap = argparse.ArgumentParser()
@@ -230,6 +263,8 @@ def main(argv=None):
     for post in todo:
         draft, how = make_draft(post, api_key)
         print(f"Drafted '{post['title']}' ({how})")
+        if not args.dry_run:
+            post = dict(post, image=ensure_image(post, url, token))
         out.append(to_payload(post, draft))
     if args.dry_run:
         print(json.dumps(out, indent=2))

@@ -162,3 +162,23 @@ test("the social page and dashboard link render", async () => {
   const dash = await (await call(e, "/dashboard", { headers: { authorization: basic } })).text();
   assert.match(dash, /href="\/social"/);
 });
+
+test("generated card: upload needs token, JPEG only, then public GET serves it", async () => {
+  const store = new Map();
+  const MEDIA = {
+    async put(k, v, o) { store.set(k, { v, o }); },
+    async get(k) { const e = store.get(k); return e ? { body: e.v } : null; },
+  };
+  const e = env({ MEDIA });
+  const key = "a".repeat(32);
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+  const put = (headers, body = jpeg) => worker.fetch(new Request(`https://d/api/social-image/${key}`, { method: "PUT", headers, body }), e, ctx);
+  assert.equal((await put({ "content-type": "image/jpeg" })).status, 401);
+  assert.equal((await put({ authorization: "Bearer tok", "content-type": "image/png" })).status, 415);
+  assert.equal((await put({ authorization: "Bearer tok", "content-type": "image/jpeg" }, new Uint8Array([1, 2, 3, 4]))).status, 415);
+  assert.equal((await put({ authorization: "Bearer tok", "content-type": "image/jpeg" })).status, 200);
+  const got = await worker.fetch(new Request(`https://d/img/social/${key}.jpg`), e, ctx); // no Basic auth: Instagram must reach it
+  assert.equal(got.status, 200);
+  assert.equal(got.headers.get("content-type"), "image/jpeg");
+  assert.equal((await worker.fetch(new Request(`https://d/img/social/${"b".repeat(32)}.jpg`), e, ctx)).status, 404);
+});

@@ -1,7 +1,7 @@
 import { normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
 import { REVIEW_PAGE } from "./review_page.js";
 import { analyticsReport } from "./analytics.js";
-import { SOCIAL_DDL, SOCIAL_PAGE, handleSocialIngest, handleSocialKnown, handleSocialList, handleSocialAction } from "./social.js";
+import { SOCIAL_DDL, SOCIAL_PAGE, handleSocialIngest, handleSocialKnown, handleSocialList, handleSocialAction, handleSocialImagePut, handleSocialImageGet } from "./social.js";
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
@@ -429,6 +429,8 @@ export default {
     if (pathname === "/api/social/known" && request.method === "GET") { await ensureSchema(env); return handleSocialKnown(request, env); }
     if (pathname === "/api/state" && ["GET", "PUT"].includes(request.method)) return handleState(request, env);
     let m;
+    if ((m = pathname.match(/^\/api\/social-image\/([0-9a-f]{32})$/)) && request.method === "PUT") return handleSocialImagePut(request, env, m[1]);
+    if ((m = pathname.match(/^\/img\/social\/([0-9a-f]{32})\.jpg$/)) && request.method === "GET") return handleSocialImageGet(env, m[1]);
     if ((m = pathname.match(/^\/api\/media\/([^/]+)$/)) && request.method === "PUT") return handleMediaUpload(request, env, m[1]);
     if ((m = pathname.match(/^\/v\/([0-9a-f]{32})\.mp4$/)) && request.method === "GET") return handleMediaFile(request, env, m[1]);
     if ((m = pathname.match(/^\/v\/([0-9a-f]{32})$/)) && request.method === "GET") return handleMediaView(request, env, ctx, m[1]);
