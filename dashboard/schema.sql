@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS drafts (
   email3 TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
   edited INTEGER NOT NULL DEFAULT 0,
+  scheduled_at TEXT,             -- UTC ISO time to auto-publish (booked as 9:00 AM Eastern on approval)
+  attempts INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   decided_at TEXT
 );
@@ -85,6 +87,8 @@ CREATE TABLE IF NOT EXISTS social_posts (
   ig_post_id TEXT,
   error TEXT,
   edited INTEGER NOT NULL DEFAULT 0,
+  scheduled_at TEXT,             -- UTC ISO time to auto-publish (booked as 9:00 AM Eastern on approval)
+  attempts INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   decided_at TEXT,
   posted_at TEXT

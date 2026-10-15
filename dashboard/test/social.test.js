@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import worker from "../src/index.js";
-import { igImageOk, socialProblems } from "../src/social.js";
+import { igImageOk, socialProblems, easternToUtc, utcToEastern, nextSlot, publishDue } from "../src/social.js";
 
 function makeDb() {
   const db = new DatabaseSync(":memory:");
@@ -181,4 +181,80 @@ test("generated card: upload needs token, JPEG only, then public GET serves it",
   assert.equal(got.status, 200);
   assert.equal(got.headers.get("content-type"), "image/jpeg");
   assert.equal((await worker.fetch(new Request(`https://d/img/social/${"b".repeat(32)}.jpg`), e, ctx)).status, 404);
+});
+
+test("Eastern time conversion handles daylight saving", () => {
+  assert.equal(easternToUtc("2026-10-16T09:00"), "2026-10-16T13:00:00Z"); // EDT = UTC-4
+  assert.equal(easternToUtc("2026-11-10T09:00"), "2026-11-10T14:00:00Z"); // EST = UTC-5
+  assert.equal(easternToUtc("2026-13-40T09:00"), null);
+  assert.equal(easternToUtc("tomorrow"), null);
+  assert.equal(utcToEastern("2026-10-16T13:00:00Z").local, "2026-10-16T09:00");
+  assert.match(utcToEastern("2026-10-16T13:00:00Z").label, /Fri, Oct 16, 9:00 AM ET/);
+});
+
+test("next slot is the next free 9:00 AM Eastern, one post per day", () => {
+  const now = new Date("2026-10-15T06:20:00Z"); // 2:20 AM Eastern
+  assert.equal(nextSlot(new Set(), now), "2026-10-15T13:00:00Z");
+  assert.equal(nextSlot(new Set(["2026-10-15"]), now), "2026-10-16T13:00:00Z");
+  assert.equal(nextSlot(new Set(), new Date("2026-10-15T14:00:00Z")), "2026-10-16T13:00:00Z"); // 10 AM: today's slot passed
+  assert.equal(nextSlot(new Set(), new Date("2026-10-15T12:58:00Z")), "2026-10-16T13:00:00Z"); // under 5 minutes away
+});
+
+test("approving books 9 AM slots on separate days; schedule can change or clear it", async () => {
+  const e = env(META);
+  await ingest(e, [POST, { ...POST, post_url: "https://a.com/two", title: "Two" }]);
+  const a = await (await act(e, 1, { action: "approve" })).json();
+  assert.equal(a.status, "approved");
+  await act(e, 2, { action: "approve" });
+  const list = await (await call(e, "/api/social?status=approved", { headers: { authorization: basic } })).json();
+  const [b, c] = list.posts; // newest first: id 2 then 1
+  assert.match(c.scheduled_label, /9:00 AM ET/);
+  assert.match(b.scheduled_label, /9:00 AM ET/);
+  assert.notEqual(b.scheduled_at.slice(0, 10), c.scheduled_at.slice(0, 10));
+  const ok = await (await act(e, 1, { action: "schedule", scheduled_local: "2099-01-05T08:30" })).json();
+  assert.equal(ok.scheduled_at, "2099-01-05T13:30:00Z");
+  assert.equal((await act(e, 1, { action: "schedule", scheduled_local: "2001-01-01T09:00" })).status, 422);
+  assert.equal((await act(e, 1, { action: "schedule", scheduled_local: "garbage" })).status, 422);
+  assert.equal((await (await act(e, 1, { action: "schedule", scheduled_local: "" })).json()).scheduled_at, null);
+  await act(e, 1, { action: "reset" });
+  assert.equal((await act(e, 1, { action: "schedule", scheduled_local: "2099-01-05T08:30" })).status, 409); // not approved
+});
+
+test("cron publishes only due posts, once, and stops retrying after three failures", async (t) => {
+  const e = env(META);
+  await ingest(e, [POST, { ...POST, post_url: "https://a.com/two", title: "Two" }]);
+  await act(e, 1, { action: "approve" });
+  await act(e, 2, { action: "approve" });
+  const set = (id, at) => e.DB.prepare("UPDATE social_posts SET scheduled_at=? WHERE id=?").bind(at, id).run();
+  await set(1, "2026-10-15T13:00:00Z");
+  await set(2, "2099-01-01T13:00:00Z");
+  const calls = mockMeta(t);
+  assert.equal(await publishDue(e, new Date("2026-10-15T13:00:30Z")), 1);
+  assert.equal(calls.filter((c) => c.url.includes("/PAGE1/feed")).length, 1);
+  assert.equal((await e.DB.prepare("SELECT status FROM social_posts WHERE id=1").first()).status, "posted");
+  assert.equal((await e.DB.prepare("SELECT status FROM social_posts WHERE id=2").first()).status, "approved");
+  assert.equal(await publishDue(e, new Date("2026-10-15T13:30:00Z")), 0); // nothing left that is due, nothing re-posted
+  assert.equal(calls.filter((c) => c.url.includes("/PAGE1/feed")).length, 1);
+
+  const f = env(META);
+  await ingest(f, [POST]);
+  await act(f, 1, { action: "approve" });
+  await f.DB.prepare("UPDATE social_posts SET scheduled_at='2026-10-15T13:00:00Z' WHERE id=1").run();
+  t.mock.restoreAll();
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({ error: { message: "down" } }), { status: 500 }));
+  for (let i = 0; i < 5; i++) await publishDue(f, new Date("2026-10-15T14:00:00Z"));
+  const row = await f.DB.prepare("SELECT status, attempts, error FROM social_posts WHERE id=1").first();
+  assert.equal(row.attempts, 3);
+  assert.equal(row.status, "approved");
+  assert.match(row.error, /facebook/);
+});
+
+test("cron does nothing when Meta is not connected, and the list shows the next slot", async () => {
+  const e = env();
+  await ingest(e, [POST]);
+  await act(e, 1, { action: "approve" });
+  await e.DB.prepare("UPDATE social_posts SET scheduled_at='2026-10-15T13:00:00Z' WHERE id=1").run();
+  assert.equal(await publishDue(e, new Date("2026-10-16T00:00:00Z")), 0);
+  const list = await (await call(e, "/api/social?status=approved", { headers: { authorization: basic } })).json();
+  assert.match(list.next_slot_label, /9:00 AM ET/);
 });

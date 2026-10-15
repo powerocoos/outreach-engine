@@ -15,9 +15,77 @@ export const SOCIAL_DDL = [
     title TEXT NOT NULL, summary TEXT, image_url TEXT, categories TEXT, pub_date TEXT, link TEXT,
     fb_text TEXT NOT NULL, ig_text TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
     fb_post_id TEXT, ig_post_id TEXT, error TEXT, edited INTEGER NOT NULL DEFAULT 0,
+    scheduled_at TEXT, attempts INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, decided_at TEXT, posted_at TEXT)`,
   "CREATE INDEX IF NOT EXISTS idx_social_status ON social_posts(status)",
 ];
+// Tables created before scheduling existed need the columns added once (errors = already there).
+export const SOCIAL_MIGRATIONS = [
+  "ALTER TABLE social_posts ADD COLUMN scheduled_at TEXT",
+  "ALTER TABLE social_posts ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0",
+];
+
+// ---- Scheduling (Eastern Time) ---------------------------------------------------
+const TZ = "America/New_York";
+const SLOT_HOUR = "09:00";
+const MAX_ATTEMPTS = 3;
+const nowIso = (d = new Date()) => d.toISOString().slice(0, 19) + "Z";
+
+function etParts(date) {
+  const f = new Intl.DateTimeFormat("en-US", { timeZone: TZ, hourCycle: "h23", year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const o = {};
+  for (const p of f.formatToParts(date)) o[p.type] = p.value;
+  return o;
+}
+
+// "2026-10-16T09:00" typed in Eastern Time -> "2026-10-16T13:00:00Z" (null if not a real time).
+export function easternToUtc(local) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(local || "");
+  if (!m) return null;
+  const [y, mo, d, h, mi] = m.slice(1).map(Number);
+  const want = Date.UTC(y, mo - 1, d, h, mi);
+  const w = new Date(want);
+  if (w.getUTCFullYear() !== y || w.getUTCMonth() !== mo - 1 || w.getUTCDate() !== d || w.getUTCHours() !== h || w.getUTCMinutes() !== mi) return null;
+  let guess = want;
+  for (let i = 0; i < 3; i++) {
+    const p = etParts(new Date(guess));
+    const diff = want - Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute);
+    if (!diff) break;
+    guess += diff;
+  }
+  const p = etParts(new Date(guess));
+  if (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) !== want) return null;
+  return nowIso(new Date(guess));
+}
+
+// UTC ISO -> { local: "2026-10-16T09:00", label: "Fri, Oct 16, 9:00 AM ET", date: "2026-10-16" }
+export function utcToEastern(iso) {
+  const t = Date.parse(iso || "");
+  if (Number.isNaN(t)) return null;
+  const date = new Date(t), p = etParts(date);
+  const label = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric",
+    hour: "numeric", minute: "2-digit" }).format(date) + " ET";
+  return { local: `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`, label, date: `${p.year}-${p.month}-${p.day}` };
+}
+
+// The next 9:00 AM Eastern that is still ahead and on a day with nothing else scheduled.
+export function nextSlot(takenDates, now = new Date()) {
+  let { year, month, day } = etParts(now);
+  let cursor = Date.UTC(+year, +month - 1, +day);
+  for (let i = 0; i < 90; i++, cursor += 86400000) {
+    const date = new Date(cursor).toISOString().slice(0, 10);
+    const at = easternToUtc(`${date}T${SLOT_HOUR}`);
+    if (at && Date.parse(at) > now.getTime() + 5 * 60000 && !takenDates.has(date)) return at;
+  }
+  return null;
+}
+
+async function takenDates(env, exceptId = 0) {
+  const rows = (await env.DB.prepare(
+    "SELECT scheduled_at FROM social_posts WHERE status='approved' AND scheduled_at IS NOT NULL AND id<>?").bind(exceptId).all()).results;
+  return new Set(rows.map((r) => utcToEastern(r.scheduled_at)?.date).filter(Boolean));
+}
 
 const FB_MAX = 3000;
 const IG_MAX = 2200;
@@ -117,12 +185,14 @@ export async function handleSocialList(request, env) {
   const posts = rows.map((r) => {
     let categories = [];
     try { categories = JSON.parse(r.categories) || []; } catch { /* keep empty */ }
-    return { ...r, categories, ig_ok: igImageOk(r.image_url) };
+    const when = utcToEastern(r.scheduled_at);
+    return { ...r, categories, ig_ok: igImageOk(r.image_url), scheduled_local: when?.local || "", scheduled_label: when?.label || "" };
   });
-  return json({ counts, posts, connected: configured(env) });
+  const slot = nextSlot(await takenDates(env));
+  return json({ counts, posts, connected: configured(env), next_slot_label: slot ? utcToEastern(slot).label : "" });
 }
 
-const ACTIONS = ["save", "approve", "reject", "reset", "publish", "mark_posted"];
+const ACTIONS = ["save", "approve", "reject", "reset", "publish", "mark_posted", "schedule"];
 
 export async function handleSocialAction(request, env, id) {
   if (!csrfOk(request)) return json({ error: "missing header" }, 403);
@@ -146,7 +216,21 @@ export async function handleSocialAction(request, env, id) {
       .bind(next.fb_text, next.ig_text, edited, id).run();
   }
 
-  if (body.action === "publish") return publish(env, { ...p }, body.channel);
+  if (body.action === "schedule") {
+    if (p.status !== "approved") return json({ error: "approve it first" }, 409);
+    let at = null;
+    if (body.scheduled_local) {
+      at = easternToUtc(body.scheduled_local);
+      if (!at) return json({ error: "that is not a valid date and time" }, 422);
+      if (Date.parse(at) < Date.now() - 60000) return json({ error: "that time has already passed" }, 422);
+    }
+    await env.DB.prepare("UPDATE social_posts SET scheduled_at=?, attempts=0, error=NULL WHERE id=?").bind(at, id).run();
+    return json({ ok: true, scheduled_at: at, label: at ? utcToEastern(at).label : null });
+  }
+  if (body.action === "publish") {
+    await env.DB.prepare("UPDATE social_posts SET attempts=0 WHERE id=?").bind(id).run();
+    return publish(env, { ...p }, body.channel);
+  }
   if (body.action === "mark_posted") {
     if (p.status !== "approved") return json({ error: "approve it first" }, 409);
     await env.DB.prepare("UPDATE social_posts SET status='posted', posted_at=CURRENT_TIMESTAMP, error=NULL WHERE id=?").bind(id).run();
@@ -154,7 +238,13 @@ export async function handleSocialAction(request, env, id) {
   }
   const status = { approve: "approved", reject: "rejected", reset: "pending", save: p.status }[body.action];
   if (body.action !== "save") {
-    await env.DB.prepare("UPDATE social_posts SET status=?, decided_at=CURRENT_TIMESTAMP WHERE id=?").bind(status, id).run();
+    // Approving books the next free 9:00 AM Eastern slot (change or clear it on the card); anything else clears it.
+    let at = null;
+    if (body.action === "approve") {
+      const slot = nextSlot(await takenDates(env, id));
+      at = p.scheduled_at || slot;
+    }
+    await env.DB.prepare("UPDATE social_posts SET status=?, decided_at=CURRENT_TIMESTAMP, scheduled_at=?, attempts=0 WHERE id=?").bind(status, at, id).run();
   }
   return json({ ok: true, status });
 }
@@ -164,7 +254,7 @@ export async function handleSocialAction(request, env, id) {
 async function publish(env, p, channel) {
   if (p.status !== "approved") return json({ error: "approve it first" }, 409);
   const conn = configured(env);
-  const want = channel === "both" ? ["facebook", "instagram"] : [channel];
+  const want = Array.isArray(channel) ? channel : channel === "both" ? ["facebook", "instagram"] : [channel];
   if (!want.every((c) => c === "facebook" || c === "instagram")) return json({ error: "bad channel" }, 400);
   const results = {}, errors = [];
   for (const c of want) {
@@ -201,7 +291,7 @@ ${LOGO_HTML}
 <p class="sub">New blog posts are turned into a Facebook caption and an Instagram caption. Edit, approve, then publish.</p>
 <div class="note" id="conn"></div><div class="bar" id="bar"></div><div id="list"><p class="empty">Loading&hellip;</p></div>
 <script>
-var STATUSES=["pending","approved","posted","rejected"], cur="pending", counts={}, connected={};
+var STATUSES=["pending","approved","posted","rejected"], cur="pending", counts={}, connected={}, nextSlot="";
 function el(t,a,k){var e=document.createElement(t);for(var x in (a||{})){if(x==="text")e.textContent=a[x];else if(x==="cls")e.className=a[x];else e.setAttribute(x,a[x]);}(k||[]).forEach(function(c){e.appendChild(c)});return e}
 function api(path,opts){opts=opts||{};opts.headers=Object.assign({"x-requested-with":"review","content-type":"application/json"},opts.headers||{});return fetch(path,opts)}
 function field(label,node,max){var l=el("label",{text:label});var w=el("span",{cls:"wc"});l.appendChild(w);var u=function(){w.textContent=node.value.length+" / "+max+" characters"};node.addEventListener("input",u);u();return [l,node]}
@@ -223,8 +313,16 @@ function card(p){
   var row=el("div",{cls:"row"});
   function btn(text,cls,action,reload,extra){var b=el("button",{cls:"act "+cls,type:"button",text:text});b.onclick=function(){b.disabled=true;send(action,extra).then(function(x){b.disabled=false;if(x.ok||reload==="always"){if(reload)load();else{msg.style.color="var(--ok)";msg.textContent="Saved"}}})};return b}
   function copyBtn(text,get){var b=el("button",{cls:"act",type:"button",text:text});b.onclick=function(){navigator.clipboard.writeText(get()).then(function(){b.textContent="Copied";setTimeout(function(){b.textContent=text},1500)})};return b}
-  if(p.status==="pending"){row.appendChild(btn("Approve","ok","approve",1));row.appendChild(btn("Save edits","","save",0));row.appendChild(btn("Reject","bad","reject",1))}
+  if(p.status==="pending"){row.appendChild(btn("Approve","ok","approve",1));row.appendChild(btn("Save edits","","save",0));row.appendChild(btn("Reject","bad","reject",1));
+    if((connected.facebook||connected.instagram)&&nextSlot)c.appendChild(el("div",{cls:"ids",text:"Approving books this post for "+nextSlot+". You can change or clear the time after approving."}))}
   else if(p.status==="approved"){
+    if(connected.facebook||connected.instagram){
+      c.appendChild(el("div",{cls:"find",text:p.scheduled_label?"Scheduled to post automatically: "+p.scheduled_label:"Not scheduled. It will only post when you click Publish."}));
+      var dt=el("input",{type:"datetime-local"});dt.value=p.scheduled_local||"";
+      var sr=el("div",{cls:"row"});
+      var sv=el("button",{cls:"act ok",type:"button",text:"Save schedule"});sv.onclick=function(){send("schedule",{scheduled_local:dt.value}).then(function(x){if(x.ok)load()})};
+      var cl=el("button",{cls:"act",type:"button",text:"Do not auto-post"});cl.onclick=function(){send("schedule",{scheduled_local:""}).then(function(x){if(x.ok)load()})};
+      c.appendChild(el("label",{text:"Publish at (Eastern Time)"}));c.appendChild(dt);sr.appendChild(sv);sr.appendChild(cl);c.appendChild(sr)}
     if(connected.facebook&&connected.instagram&&p.ig_ok)row.appendChild(btn("Publish to both","primary","publish","always",{channel:"both"}));
     if(connected.facebook)row.appendChild(btn("Publish to Facebook"+(p.fb_post_id?" (done)":""),"primary","publish","always",{channel:"facebook"}));
     if(connected.instagram&&p.ig_ok)row.appendChild(btn("Publish to Instagram"+(p.ig_post_id?" (done)":""),"primary","publish","always",{channel:"instagram"}));
@@ -236,7 +334,7 @@ function card(p){
   if(p.error){c.appendChild(el("div",{cls:"msg",text:"Last attempt: "+p.error}))}
   if(p.fb_post_id||p.ig_post_id){c.appendChild(el("div",{cls:"ids",text:"Posted"+(p.fb_post_id?" \\u00b7 Facebook "+p.fb_post_id:"")+(p.ig_post_id?" \\u00b7 Instagram "+p.ig_post_id:"")}))}
   return c}
-function load(){api("/api/social?status="+cur).then(function(r){return r.json()}).then(function(j){counts=j.counts;connected=j.connected||{};renderBar();var list=document.getElementById("list");list.textContent="";
+function load(){api("/api/social?status="+cur).then(function(r){return r.json()}).then(function(j){counts=j.counts;connected=j.connected||{};nextSlot=j.next_slot_label||"";renderBar();var list=document.getElementById("list");list.textContent="";
   if(!j.posts.length)list.appendChild(el("p",{cls:"empty",text:"Nothing here."}));
   j.posts.forEach(function(p){list.appendChild(card(p))})}).catch(function(e){document.getElementById("list").textContent="Failed to load: "+e})}
 load();
@@ -262,4 +360,29 @@ export async function handleSocialImageGet(env, token) {
   const obj = await env.MEDIA.get(`social/${token}.jpg`);
   if (!obj) return new Response("Not found", { status: 404 });
   return new Response(obj.body, { headers: { "content-type": "image/jpeg", "cache-control": "public, max-age=86400" } });
+}
+
+// Cron: post anything whose scheduled time has arrived. Only channels that can take the post are tried, each
+// channel posts at most once, and after MAX_ATTEMPTS failures it stops and shows the error on the card.
+export async function publishDue(env, now = new Date()) {
+  const conn = configured(env);
+  if (!conn.facebook && !conn.instagram) return 0;
+  const due = (await env.DB.prepare(
+    "SELECT * FROM social_posts WHERE status='approved' AND scheduled_at IS NOT NULL AND scheduled_at<=? AND attempts<? ORDER BY scheduled_at LIMIT 3"
+  ).bind(nowIso(now), MAX_ATTEMPTS).all()).results;
+  let n = 0;
+  for (const p of due) {
+    const channels = [];
+    if (conn.facebook && !p.fb_post_id) channels.push("facebook");
+    if (conn.instagram && !p.ig_post_id && igImageOk(p.image_url)) channels.push("instagram");
+    if (!channels.length) {
+      if (p.fb_post_id || p.ig_post_id) await env.DB.prepare("UPDATE social_posts SET status='posted', posted_at=CURRENT_TIMESTAMP, error=NULL WHERE id=?").bind(p.id).run();
+      continue;
+    }
+    await publish(env, { ...p }, channels);
+    const after = await env.DB.prepare("SELECT status FROM social_posts WHERE id=?").bind(p.id).first();
+    if (after?.status !== "posted") await env.DB.prepare("UPDATE social_posts SET attempts=attempts+1 WHERE id=?").bind(p.id).run();
+    n++;
+  }
+  return n;
 }

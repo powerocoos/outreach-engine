@@ -43,3 +43,11 @@ drafting job renders a branded 1080x1080 "NEW ON THE BLOG" card (`pipeline/socia
 (`/img/social/<id>.jpg`) as the post image. Facebook is unaffected: it posts the blog link and Facebook builds the
 preview from the blog page. Posts drafted before this change keep their original image; edit or re-queue them if
 Instagram is blocked.
+
+## Scheduling
+
+Approving a post books the next free **9:00 AM Eastern** slot (one post per day). Change the time, or choose
+"Do not auto-post", on the approved card. A Worker cron (every 30 minutes) publishes posts whose time has arrived,
+to every connected channel that can take the post. Each channel posts at most once; a failing post is retried up to
+3 times, then stops and shows its error on the card. "Publish" buttons still post immediately. Times are entered and
+shown in Eastern Time; stored as UTC.

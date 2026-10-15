@@ -1,7 +1,7 @@
 import { normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
 import { REVIEW_PAGE } from "./review_page.js";
 import { analyticsReport } from "./analytics.js";
-import { SOCIAL_DDL, SOCIAL_PAGE, handleSocialIngest, handleSocialKnown, handleSocialList, handleSocialAction, handleSocialImagePut, handleSocialImageGet } from "./social.js";
+import { SOCIAL_DDL, SOCIAL_PAGE, handleSocialIngest, handleSocialKnown, handleSocialList, handleSocialAction, handleSocialImagePut, handleSocialImageGet, publishDue, SOCIAL_MIGRATIONS } from "./social.js";
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
@@ -147,6 +147,7 @@ const schemaDone = new WeakSet();
 async function ensureSchema(env) {
   if (schemaDone.has(env.DB)) return;
   for (const sql of [...DRAFTS_DDL, ...SOCIAL_DDL]) await env.DB.prepare(sql).run();
+  for (const sql of SOCIAL_MIGRATIONS) { try { await env.DB.prepare(sql).run(); } catch { /* column already exists */ } }
   schemaDone.add(env.DB);
 }
 
@@ -419,6 +420,7 @@ async function stats(env) {
 export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(syncInstantly(env, ctx).catch(() => {}));
+    ctx.waitUntil(ensureSchema(env).then(() => publishDue(env)).catch(() => {}));
   },
   async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url);
