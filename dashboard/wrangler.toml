@@ -14,6 +14,9 @@ database_id = "2c7ac847-c075-4f30-9c2f-30c802b54d97"
 #   API_TOKEN           - bearer token for POST /api/leads (pipeline import)
 #   TWILIO_SID, TWILIO_TOKEN, TWILIO_FROM, ALERT_PHONE - speed-to-lead SMS to your own phone
 
+[triggers]
+crons = ["*/30 * * * *"]   # poll Instantly for replies/bounces (no webhook needed)
+
 [vars]
 INSTANTLY_CAMPAIGN_ID = "54f9440b-6237-442c-8057-14e3150ce4b6"
 

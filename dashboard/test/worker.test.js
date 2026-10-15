@@ -259,3 +259,24 @@ test("campaign status, launch needs typed confirmation, pause works", async () =
     assert.equal(unauth.status, 401);
   } finally { globalThis.fetch = realFetch; }
 });
+
+test("polling sync records events once and updates lead status", async () => {
+  const e = { ...env(), INSTANTLY_API_KEY: "k", INSTANTLY_CAMPAIGN_ID: "camp-1" };
+  await post(e, "/api/drafts", { drafts: [draft()] });
+  await review(e, "/api/review/1", { action: "approve" });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ items: [
+    { email: "bob@coolair.com", timestamp_last_contact: "2026-10-20T10:00:00Z", email_reply_count: 1, status: 1 },
+    { email: "gone@x.com", timestamp_last_contact: "2026-10-20T10:00:00Z", status: -1 },
+  ] }), { status: 200 });
+  try {
+    const hit = () => worker.fetch(new Request("https://x/api/sync/instantly", { method: "POST", headers: { authorization: basic, "x-requested-with": "review" } }), e, ctx).then((r) => r.json());
+    const r1 = await hit();
+    assert.equal(r1.leadsSeen, 2);
+    assert.equal(r1.added, 4); // bob: sent+replied, gone: sent+bounced
+    const r2 = await hit();
+    assert.equal(r2.added, 0);
+    assert.equal((await e.DB.prepare("SELECT status FROM leads WHERE contact_email='bob@coolair.com'").first()).status, "replied");
+    assert.equal((await e.DB.prepare("SELECT COUNT(*) n FROM touches WHERE event='replied'").first()).n, 1);
+  } finally { globalThis.fetch = realFetch; }
+});

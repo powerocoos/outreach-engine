@@ -74,6 +74,7 @@ function loadCamp(){var box=document.getElementById("camp");api("/api/campaign")
   box.appendChild(el("span",{cls:"pill"+(c.status===1?" on":(c.status<0?" warn":"")),text:c.label}));
   if(c.daily_limit)box.appendChild(el("span",{text:c.daily_limit+" emails/day max"}));
   box.appendChild(el("span",{cls:"sp"}));
+  var sy=el("button",{cls:"act",type:"button",text:"Refresh stats"});sy.onclick=function(){sy.disabled=true;api("/api/sync/instantly",{method:"POST",body:"{}"}).then(function(r){return r.json()}).then(function(j){alert(j.error?j.error:j.skipped?j.skipped:("Checked "+j.leadsSeen+" lead(s), "+j.added+" new event(s)."));sy.disabled=false}).catch(function(e){alert("Failed: "+e);sy.disabled=false})};box.appendChild(sy);
   function act(path,body){return api(path,{method:"POST",body:JSON.stringify(body||{})}).then(function(r){return r.json()}).then(function(j){if(j.error)alert(j.error);loadCamp()})}
   if(c.status===1){var p=el("button",{cls:"act bad",type:"button",text:"Pause campaign"});p.onclick=function(){p.disabled=true;act("/api/campaign/pause")};box.appendChild(p)}
   else if(c.status===0||c.status===2){var l=el("button",{cls:"act primary",type:"button",text:c.status===0?"Launch campaign":"Resume campaign"});

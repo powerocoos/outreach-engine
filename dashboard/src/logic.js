@@ -92,3 +92,15 @@ export function draftProblems(d) {
 
 export const REVIEW_STATUSES = ["pending", "approved", "rejected", "exported"];
 export const REVIEW_ACTIONS = ["approve", "reject", "save", "reset"];
+
+// Derive our event vocabulary from an Instantly lead record (used by the polling sync).
+export function eventsFromLead(lead) {
+  const ev = [];
+  if (lead.timestamp_last_contact) ev.push("sent");
+  const interest = Number(lead.lt_interest_status);
+  if (Number(lead.email_reply_count) > 0 || interest === 1 || interest === 2) ev.push("replied");
+  if (interest === 2) ev.push("booked");
+  if (lead.status === -1) ev.push("bounced");
+  if (lead.status === -2) ev.push("unsubscribed");
+  return ev;
+}

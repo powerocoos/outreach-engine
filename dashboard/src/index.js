@@ -1,4 +1,4 @@
-import { normalizeEvent, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
+import { normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
 import { REVIEW_PAGE } from "./review_page.js";
 
 const json = (data, status = 200) =>
@@ -342,6 +342,45 @@ async function handleCampaignAction(request, env, action) {
   return json({ ok: true, action });
 }
 
+// --- Poll Instantly for lead activity (used instead of webhooks) ---------------
+// Records each (lead, event) once, so repeated polls never double count.
+export async function syncInstantly(env, ctx) {
+  if (!env.INSTANTLY_API_KEY || !env.INSTANTLY_CAMPAIGN_ID) return { skipped: "not configured" };
+  await ensureSchema(env);
+  let cursor, leadsSeen = 0, added = 0;
+  for (let page = 0; page < 20; page++) {
+    const res = await fetch("https://api.instantly.ai/api/v2/leads/list", {
+      method: "POST",
+      headers: { authorization: `Bearer ${env.INSTANTLY_API_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({ campaign: env.INSTANTLY_CAMPAIGN_ID, limit: 100, ...(cursor ? { starting_after: cursor } : {}) }),
+    });
+    if (!res.ok) return { error: `Instantly ${res.status}`, leadsSeen, added };
+    const data = await res.json();
+    for (const it of data.items || []) {
+      leadsSeen++;
+      const email = String(it.email || "").trim().toLowerCase();
+      if (!email) continue;
+      const lead = await env.DB.prepare("SELECT * FROM leads WHERE contact_email = ?").bind(email).first();
+      for (const event of eventsFromLead(it)) {
+        const seen = await env.DB.prepare("SELECT 1 x FROM touches WHERE contact_email=? AND event=?").bind(email, event).first();
+        if (seen) continue;
+        await env.DB.prepare("INSERT INTO touches (lead_id, contact_email, event, step, campaign, raw) VALUES (?,?,?,?,?,?)")
+          .bind(lead?.id ?? null, email, event, null, env.INSTANTLY_CAMPAIGN_ID, "poll").run();
+        added++;
+        if (lead) {
+          const next = { replied: "replied", booked: "booked", bounced: "dead", unsubscribed: "dead" }[event];
+          if (next) await env.DB.prepare("UPDATE leads SET status=? WHERE id=?").bind(next, lead.id).run();
+        }
+        if (event === "booked") await env.DB.prepare("INSERT INTO bookings (lead_id, contact_email) VALUES (?,?)").bind(lead?.id ?? null, email).run();
+        if (shouldAlert(event)) { const p = sendSms(env, alertText(event, lead, email)); if (ctx?.waitUntil) ctx.waitUntil(p); }
+      }
+    }
+    cursor = data.next_starting_after;
+    if (!cursor || !(data.items || []).length) break;
+  }
+  return { leadsSeen, added };
+}
+
 async function stats(env) {
   const count = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).first()).n;
   const uniq = (ev) => count("SELECT COUNT(DISTINCT contact_email) n FROM touches WHERE event=?", ev);
@@ -376,6 +415,9 @@ async function stats(env) {
 }
 
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(syncInstantly(env, ctx).catch(() => {}));
+  },
   async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url);
     if (pathname === "/webhook/instantly" && request.method === "POST") return handleWebhook(request, env, ctx);
@@ -395,6 +437,10 @@ export default {
     if (pathname === "/api/review" && request.method === "GET") { await ensureSchema(env); return handleReviewList(request, env); }
     if ((m = pathname.match(/^\/api\/review\/(\d+)$/)) && request.method === "POST") { await ensureSchema(env); return handleReviewAction(request, env, Number(m[1])); }
     if (pathname === "/api/send/instantly" && request.method === "POST") { await ensureSchema(env); return handleSendToInstantly(request, env); }
+    if (pathname === "/api/sync/instantly" && request.method === "POST") {
+      if (!csrfOk(request)) return json({ error: "missing header" }, 403);
+      return json(await syncInstantly(env, ctx));
+    }
     if (pathname === "/api/campaign" && request.method === "GET") return handleCampaign(request, env);
     if (pathname === "/api/campaign/launch" && request.method === "POST") return handleCampaignAction(request, env, "activate");
     if (pathname === "/api/campaign/pause" && request.method === "POST") return handleCampaignAction(request, env, "pause");
