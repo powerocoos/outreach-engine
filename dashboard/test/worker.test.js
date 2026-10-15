@@ -213,3 +213,24 @@ test("state upload and download use the token", async () => {
   const bad = await worker.fetch(new Request("https://x/api/state"), e, ctx);
   assert.equal(bad.status, 401);
 });
+
+test("send approved drafts to Instantly via API", async () => {
+  const e = { ...env(), INSTANTLY_API_KEY: "k", INSTANTLY_CAMPAIGN_ID: "camp-1" };
+  await post(e, "/api/drafts", { drafts: [draft()] });
+  await review(e, "/api/review/1", { action: "approve" });
+  const missing = await review({ ...e, INSTANTLY_API_KEY: undefined }, "/api/send/instantly", {});
+  assert.equal(missing.status, 400);
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { calls.push({ url, init }); return new Response("{}", { status: 200 }); };
+  try {
+    const r = await (await review(e, "/api/send/instantly", {})).json();
+    assert.equal(r.sent, 1);
+    assert.equal(calls[0].url, "https://api.instantly.ai/api/v2/leads");
+    const body = JSON.parse(calls[0].init.body);
+    assert.equal(body.campaign, "camp-1");
+    assert.equal(body.custom_variables.Email1, draft().email1);
+    assert.equal(calls[0].init.headers.authorization, "Bearer k");
+    assert.equal((await e.DB.prepare("SELECT status FROM drafts").first()).status, "exported");
+  } finally { globalThis.fetch = realFetch; }
+});

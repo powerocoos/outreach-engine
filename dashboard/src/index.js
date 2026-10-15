@@ -267,6 +267,45 @@ async function handleExport(request, env) {
   } });
 }
 
+// Push approved drafts into the Instantly campaign through its API (campaign stays a draft until launched in Instantly).
+async function handleSendToInstantly(request, env) {
+  if (!csrfOk(request)) return json({ error: "missing header" }, 403);
+  if (!env.INSTANTLY_API_KEY) return json({ error: "INSTANTLY_API_KEY is not set on the Worker" }, 400);
+  const campaign = env.INSTANTLY_CAMPAIGN_ID;
+  if (!campaign) return json({ error: "INSTANTLY_CAMPAIGN_ID is not set" }, 400);
+  const rows = (await env.DB.prepare(
+    `SELECT d.* FROM drafts d LEFT JOIN leads l ON l.contact_email = d.contact_email
+     WHERE d.status='approved' AND COALESCE(l.status,'') != 'dead' ORDER BY d.id LIMIT 50`
+  ).all()).results;
+  let sent = 0;
+  const failed = [];
+  for (const r of rows) {
+    let res;
+    try {
+      res = await fetch("https://api.instantly.ai/api/v2/leads", {
+        method: "POST",
+        headers: { authorization: `Bearer ${env.INSTANTLY_API_KEY}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          campaign, email: r.contact_email, company_name: r.company || "", website: r.website || "",
+          skip_if_in_campaign: true,
+          custom_variables: { Subject: r.subject, Email1: r.email1, Email2: r.email2, Email3: r.email3 },
+        }),
+      });
+    } catch (e) {
+      failed.push({ company: r.company, error: "network error" });
+      continue;
+    }
+    if (res.ok) {
+      await env.DB.prepare("UPDATE drafts SET status='exported', decided_at=CURRENT_TIMESTAMP WHERE id=?").bind(r.id).run();
+      sent++;
+    } else {
+      failed.push({ company: r.company, error: `Instantly ${res.status}` });
+      if (res.status === 401 || res.status === 402 || res.status === 429) break;
+    }
+  }
+  return json({ ok: failed.length === 0, sent, failed, remaining: rows.length - sent });
+}
+
 async function stats(env) {
   const count = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).first()).n;
   const uniq = (ev) => count("SELECT COUNT(DISTINCT contact_email) n FROM touches WHERE event=?", ev);
@@ -319,6 +358,7 @@ export default {
     }
     if (pathname === "/api/review" && request.method === "GET") { await ensureSchema(env); return handleReviewList(request, env); }
     if ((m = pathname.match(/^\/api\/review\/(\d+)$/)) && request.method === "POST") { await ensureSchema(env); return handleReviewAction(request, env, Number(m[1])); }
+    if (pathname === "/api/send/instantly" && request.method === "POST") { await ensureSchema(env); return handleSendToInstantly(request, env); }
     if (pathname === "/api/export/instantly" && request.method === "POST") { await ensureSchema(env); return handleExport(request, env); }
     if (pathname === "/" || pathname === "/dashboard") {
       return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });

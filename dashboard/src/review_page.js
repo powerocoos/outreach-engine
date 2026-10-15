@@ -37,8 +37,11 @@ function words(t){return t.trim().split(/\\s+/).filter(Boolean).length}
 function renderBar(){var bar=document.getElementById("bar");bar.textContent="";
   STATUSES.forEach(function(s){var b=el("button",{cls:"tab",type:"button","aria-pressed":String(s===cur),text:s+" ("+(counts[s]||0)+")"});b.onclick=function(){cur=s;load()};bar.appendChild(b)});
   bar.appendChild(el("span",{cls:"sp"}));
-  var ex=el("button",{cls:"act primary",type:"button",text:"Download Instantly CSV ("+(counts.approved||0)+")"});ex.disabled=!(counts.approved>0);
+  var ex=el("button",{cls:"act primary",type:"button",text:"Download CSV ("+(counts.approved||0)+")"});ex.disabled=!(counts.approved>0);
   ex.onclick=function(){ex.disabled=true;api("/api/export/instantly",{method:"POST",body:"{}"}).then(function(r){var n=r.headers.get("x-exported-count");return r.blob().then(function(b){var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="instantly.csv";a.click();alert("Downloaded "+n+" lead(s). They are now marked exported.");load()})})};
+  var sb=el("button",{cls:"act primary",type:"button",text:"Send to Instantly ("+(counts.approved||0)+")"});sb.disabled=!(counts.approved>0);
+  sb.onclick=function(){if(!confirm("Add "+(counts.approved||0)+" approved lead(s) to the Instantly campaign? Nothing is emailed until you launch the campaign in Instantly."))return;sb.disabled=true;api("/api/send/instantly",{method:"POST",body:"{}"}).then(function(r){return r.json()}).then(function(j){if(j.error){alert(j.error)}else{alert("Added "+j.sent+" lead(s) to Instantly."+(j.failed&&j.failed.length?" Failed: "+j.failed.map(function(f){return f.company+" ("+f.error+")"}).join(", "):""))}load()}).catch(function(e){alert("Failed: "+e);load()})};
+  bar.appendChild(sb);
   bar.appendChild(ex)}
 function field(label,node,wcFor){var l=el("label",{text:label});if(wcFor){var w=el("span",{cls:"wc"});l.appendChild(w);var u=function(){w.textContent=words(node.value)+" words"};node.addEventListener("input",u);u()}return [l,node]}
 function card(d){

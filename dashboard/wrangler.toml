@@ -10,8 +10,12 @@ database_id = "2c7ac847-c075-4f30-9c2f-30c802b54d97"
 # Secrets (set with `wrangler secret put NAME`, never commit):
 #   DASHBOARD_PASSWORD  - Basic-auth password for the dashboard
 #   WEBHOOK_SECRET      - shared secret Instantly sends with webhooks
+#   INSTANTLY_API_KEY   - Instantly API key (scope: leads:create) for Send to Instantly
 #   API_TOKEN           - bearer token for POST /api/leads (pipeline import)
 #   TWILIO_SID, TWILIO_TOKEN, TWILIO_FROM, ALERT_PHONE - speed-to-lead SMS to your own phone
+
+[vars]
+INSTANTLY_CAMPAIGN_ID = "54f9440b-6237-442c-8057-14e3150ce4b6"
 
 [[r2_buckets]]
 binding = "MEDIA"
