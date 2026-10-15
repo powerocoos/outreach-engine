@@ -22,13 +22,17 @@ Needs an Instagram professional (business or creator) account linked to the Face
 screens often, so treat the steps as a guide.
 1. developers.facebook.com -> create an app (type Business). Stay in Development mode: it can post to pages
    you own without app review.
-2. In Graph API Explorer pick that app, request `pages_show_list`, `pages_read_engagement`,
-   `pages_manage_posts`, `instagram_basic`, `instagram_content_publish`, and generate a user token.
-3. Exchange it for a long-lived user token, then `GET /me/accounts` returns the Page id and a Page token
-   (a Page token made from a long-lived user token does not expire).
-4. `GET /<page-id>?fields=instagram_business_account` returns the Instagram user id.
-5. Add Worker secrets: `META_PAGE_ID`, `META_PAGE_TOKEN`, `META_IG_USER_ID` (IG is optional).
-   If Meta retires the API version, set the variable `META_GRAPH_VERSION` (default v23.0).
+2. Recommended (never expires): in Meta Business Settings -> Users -> System users, add a system user (Admin),
+   assign it the Page (Content access) and the Instagram account, and assign the app (Develop app). Click
+   **Generate token**, pick the app, expiration **Never**, permissions `pages_show_list`, `pages_read_engagement`,
+   `pages_manage_posts`, `instagram_basic`, `instagram_content_publish`. Copy the token once (it is shown only once).
+   The dashboard swaps it for the Page's own token when posting to Facebook; Instagram uses it directly.
+   (Older route: a long-lived user token from Graph API Explorer. User tokens expire after about 60 days and
+   `/me/accounts` can come back empty when the Page sits in a business portfolio.)
+3. `GET /<page-id>?fields=instagram_business_account` returns the Instagram user id; the Page id is in Page settings.
+4. Add Worker secrets yourself in Cloudflare: `META_PAGE_ID`, `META_PAGE_TOKEN` (the token from step 2),
+   `META_IG_USER_ID` (IG is optional). Never paste tokens into chat. If Meta retires the API version, set the
+   variable `META_GRAPH_VERSION` (default v23.0).
 Publish buttons then appear on the Social posts page. Instagram only accepts JPEG images; posts whose header
 image is a PNG are Facebook-only.
 
