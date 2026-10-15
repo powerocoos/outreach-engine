@@ -181,5 +181,30 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(list(rows[0].keys()), personalize.INSTANTLY_COLUMNS)
 
 
+
+
+class WritingRuleTests(unittest.TestCase):
+    def _draft(self, **kw):
+        d = {"angle": "a", "subject": "Google's mobile test on Acme", "email1": "Hi. In Google's test it took 10.4 seconds. Worth a look?",
+             "email2": "Next. Want it?", "email3": "Last. Okay?"}
+        d.update(kw)
+        return d
+
+    def test_clean_draft_passes(self):
+        self.assertEqual(personalize.validate_draft(self._draft(), ["f"]), [])
+
+    def test_timing_in_subject_rejected(self):
+        p = personalize.validate_draft(self._draft(subject="Your site takes 10 seconds"), ["f"])
+        self.assertTrue(any("subject" in x for x in p))
+
+    def test_unattributed_timing_rejected(self):
+        p = personalize.validate_draft(self._draft(email2="It takes 12 seconds to load. Want help?"), ["f"])
+        self.assertTrue(any("email2" in x for x in p))
+
+    def test_audit_targets_homepage(self):
+        self.assertIn("Google's mobile speed test", audit.build_findings(
+            {"https": True, "has_viewport": True, "has_tap_to_call": True}, None, 6.2)[0])
+
+
 if __name__ == "__main__":
     unittest.main()

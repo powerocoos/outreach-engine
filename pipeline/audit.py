@@ -45,7 +45,7 @@ def build_findings(facts, mobile_score=None, lcp_seconds=None):
     if mobile_score is not None and mobile_score < 50:
         f.append(f"Google PageSpeed gives the mobile version a performance score of {mobile_score}/100.")
     if lcp_seconds is not None and lcp_seconds > 4.0:
-        f.append(f"The main content takes about {lcp_seconds:.1f} seconds to appear on a mobile connection.")
+        f.append(f"In Google's mobile speed test, the main content takes about {lcp_seconds:.1f} seconds to appear.")
     return f
 
 
@@ -67,6 +67,8 @@ def pagespeed(url, api_key=None):
 
 def audit_lead(lead, api_key=None, run_pagespeed=True):
     url = lead["website"] if lead["website"].startswith("http") else "https://" + lead["website"]
+    parts = urllib.parse.urlsplit(url)
+    url = f"{parts.scheme}://{parts.netloc}/"  # audit the homepage, not an inner page from the listing
     status, final_url, _, body = http_request(url, timeout=20, retries=1)
     if status != 200:
         return {"reachable": 0, "https": 0, "has_viewport": 0, "has_tap_to_call": 0,

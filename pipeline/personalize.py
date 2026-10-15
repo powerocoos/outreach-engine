@@ -11,6 +11,7 @@ import argparse
 import csv
 import json
 import os
+import re
 
 import brand
 from common import connect, http_request
@@ -38,6 +39,16 @@ Hard rules:
 - If "video_url" is provided, Email 1 must include that exact URL once, introduced as a short
   screen recording of how the site looks on a phone. If it is not provided, never mention a
   video, recording, or screen capture anywhere.
+- Speed numbers come from Google's mobile speed test, a simulated slower phone connection. Always
+  attribute them ("in Google's mobile speed test", "Google's mobile test"), never say a page
+  "takes N seconds on a phone" as if you timed it in person. Subject lines must not contain a
+  timing number.
+- Never state a cause as fact. You have not looked inside their site. Use "can", "often", "one
+  common cause is", "I'd want to check".
+- Give advice only about the verified finding. Do not suggest fixes for things the findings do not
+  mention (for example phone-number placement, images, plugins, hosting) unless framed as a
+  common cause you would check.
+- Refer to "your website" or "your homepage"; never name a specific inner page.
 - Do not include a signature, address, or unsubscribe text; those are added later.
 
 Return ONLY JSON: {{"angle": str, "subject": str, "email1": str, "email2": str, "email3": str}}"""
@@ -63,6 +74,11 @@ def validate_draft(d, findings, video_url=None):
             problems.append(f"{k} is {word_count(d[k])} words")
         if "?" not in d[k]:
             problems.append(f"{k} has no question CTA")
+    if re.search(r"\d+(\.\d+)?\s*(seconds?|secs?)\b", d["subject"], re.I):
+        problems.append("subject states a timing number")
+    for k in ("email1", "email2", "email3"):
+        if re.search(r"\d+(\.\d+)?\s*seconds?\b", d[k], re.I) and "google" not in d[k].lower():
+            problems.append(f"{k} gives a timing without attributing it to Google's test")
     if video_url:
         if video_url not in d["email1"]:
             problems.append("email1 is missing the video link")
@@ -81,7 +97,7 @@ def template_draft(lead, findings, video_url=None):
             if video_url else "")
     return {
         "angle": first,
-        "subject": f"{c} on mobile",
+        "subject": f"Google's mobile test on {c}'s site",
         "email1": (f"Hi there,\n\nI'm {brand.SENDER_NAME} with {brand.BRAND_NAME}. I looked at {c}'s "
                    f"website while checking local options in {city}. "
                    f"{first}\n\nMost people searching for a contractor are on a phone, and they "
