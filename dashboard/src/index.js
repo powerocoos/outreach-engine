@@ -1,5 +1,5 @@
 import { normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
-import { REVIEW_PAGE } from "./review_page.js";
+import { REVIEW_PAGE, NAV_CSS, MOBILE_CSS, navHtml } from "./review_page.js";
 import { analyticsReport } from "./analytics.js";
 import { SOCIAL_DDL, SOCIAL_PAGE, handleSocialIngest, handleSocialKnown, handleSocialList, handleSocialAction, handleSocialImagePut, handleSocialImageGet, publishDue, SOCIAL_MIGRATIONS } from "./social.js";
 
@@ -482,8 +482,8 @@ h1{font-size:24px;font-weight:700;color:var(--acc);margin:0 0 4px}h2{font-size:1
 .tile{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 1px 3px rgba(17,24,39,.06);padding:12px 14px}
 .tile b{display:block;font-size:28px;font-weight:700;color:var(--acc)}.tile span{color:var(--mut);font-size:13px}
 table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{color:var(--mut);font-weight:600;font-size:13px}
-.top{display:flex;align-items:center;gap:14px;padding-bottom:16px;margin-bottom:20px;border-bottom:1px solid var(--line)}.top img{height:44px;width:auto}@media(prefers-color-scheme:dark){.top img{background:#fff;border-radius:8px;padding:4px 8px}}.top a.nav{margin-left:auto;background:var(--cta);color:#fff;text-decoration:none;border-radius:999px;padding:8px 18px;font-weight:500;font-size:14px}a{color:var(--cta)}</style></head><body>
-<div class="top"><img src="https://images.squarespace-cdn.com/content/v1/5dc50cc1afeeeb552425247c/d8489d11-b4c0-4699-abf0-75e870088b4f/Ocoos+Web+Consulting+Logo+01+-+smaller-min.png?format=500w" alt="Ocoos Web Consulting"><a class="nav" href="/social" style="margin-left:auto;background:transparent;color:var(--cta);border:1px solid var(--cta)">Social posts</a><a class="nav" href="/review" style="margin-left:0">Review drafts &rarr;</a></div>
+${NAV_CSS}${MOBILE_CSS}@media(max-width:640px){td,th{word-break:break-word;padding:8px 4px}}a{color:var(--cta)}</style></head><body>
+${navHtml("dashboard")}
 <h1>Outreach dashboard</h1><div id="app">Loading…</div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));

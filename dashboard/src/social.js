@@ -1,7 +1,7 @@
 // Social posts: blog posts from the Squarespace RSS feed -> drafted Facebook/Instagram captions ->
 // review here -> publish through the Meta Graph API (or copy by hand when it is not connected).
 import { safeEqual } from "./logic.js";
-import { BASE_CSS, FONT_LINKS, LOGO_HTML } from "./review_page.js";
+import { BASE_CSS, FONT_LINKS, navHtml } from "./review_page.js";
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
@@ -286,7 +286,7 @@ export const SOCIAL_PAGE = `<!doctype html><html lang="en"><head><meta charset="
 <title>Social posts</title>
 ${FONT_LINKS}<style>${BASE_CSS}
 .thumb{width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin:8px 0}.ids{color:var(--mut);font-size:13px;margin-top:8px}.note{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:0 0 14px;font-size:14px}</style></head><body>
-${LOGO_HTML}
+${navHtml("social")}
 <h1>Social posts</h1>
 <p class="sub">New blog posts are turned into a Facebook caption and an Instagram caption. Edit, approve, then publish.</p>
 <div class="note" id="conn"></div><div class="bar" id="bar"></div><div id="list"><p class="empty">Loading&hellip;</p></div>
