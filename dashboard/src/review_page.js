@@ -2,30 +2,32 @@
 export const REVIEW_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>Review drafts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#fff;--fg:#1c1b1a;--mut:#6b6762;--card:#f6f4f1;--line:#e4e0da;--acc:#c2410c;--ok:#15803d;--bad:#b91c1c}
-@media(prefers-color-scheme:dark){:root{--bg:#161514;--fg:#f1eeea;--mut:#a39d95;--card:#201f1d;--line:#34312e;--acc:#fb923c;--ok:#4ade80;--bad:#f87171}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif;padding:24px 16px;max-width:900px;margin-inline:auto}
-a{color:var(--acc)}h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px}
+:root{--bg:#fff;--fg:#111827;--mut:#4b5563;--card:#fff;--line:#e5e7eb;--soft:#f3f4f6;--acc:#155387;--cta:#0066cc;--ok:#15803d;--bad:#b91c1c}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1720;--fg:#f3f4f6;--mut:#9ca3af;--card:#16212d;--line:#243242;--soft:#1b2836;--acc:#7cb7ee;--cta:#3b8fe0;--ok:#4ade80;--bad:#f87171}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:300 15px/1.6 'Poppins',system-ui,sans-serif;padding:24px 16px;max-width:900px;margin-inline:auto}
+a{color:var(--cta)}h1{font-size:24px;font-weight:700;color:var(--acc);margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}
-.tab{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:999px;padding:6px 14px;cursor:pointer;font:inherit}
-.tab[aria-pressed=true]{border-color:var(--acc);color:var(--acc);font-weight:600}
+.tab{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:999px;padding:6px 14px;cursor:pointer;font:inherit}
+.tab[aria-pressed=true]{border-color:var(--cta);background:var(--cta);color:#fff;font-weight:500}
 .sp{flex:1}
-button.act{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:8px 14px;cursor:pointer;font:inherit}
+button.act{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:6px;padding:8px 16px;cursor:pointer;font:inherit;font-weight:500}
 button.act.ok{background:var(--ok);border-color:var(--ok);color:#fff}button.act.bad{color:var(--bad)}
-button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+button.primary{background:var(--cta);border-color:var(--cta);color:#fff}
 button:disabled{opacity:.5;cursor:default}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:14px 0}
-.card h2{font-size:16px;margin:0}.meta{color:var(--mut);font-size:13px;margin:2px 0 10px}
-.find{margin:8px 0;padding:8px 12px;border-left:3px solid var(--acc);background:var(--bg);border-radius:4px;font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;margin:14px 0;box-shadow:0 1px 3px rgba(17,24,39,.06)}
+.card h2{font-size:17px;font-weight:600;color:var(--acc);margin:0}.meta{color:var(--mut);font-size:13px;margin:2px 0 10px}
+.find{margin:8px 0;padding:8px 12px;border-left:3px solid var(--cta);background:var(--soft);border-radius:6px;font-size:14px}
 label{display:block;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 4px}
-input,textarea{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit}
+input,textarea{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:inherit}
 textarea{min-height:120px;resize:vertical}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.wc{font-size:12px;color:var(--mut);float:right;text-transform:none;letter-spacing:0}
 .msg{color:var(--bad);font-size:13px;margin-top:8px}.empty{color:var(--mut);padding:30px 0;text-align:center}
-</style></head><body>
+.top{display:flex;align-items:center;gap:14px;padding-bottom:16px;margin-bottom:20px;border-bottom:1px solid var(--line)}.top img{height:44px;width:auto}@media(prefers-color-scheme:dark){.top img{background:#fff;border-radius:8px;padding:4px 8px}}.top a.nav{margin-left:auto;background:var(--cta);color:#fff;text-decoration:none;border-radius:999px;padding:8px 18px;font-weight:500;font-size:14px}</style></head><body>
+<div class="top"><img src="https://images.squarespace-cdn.com/content/v1/5dc50cc1afeeeb552425247c/d8489d11-b4c0-4699-abf0-75e870088b4f/Ocoos+Web+Consulting+Logo+01+-+smaller-min.png?format=500w" alt="Ocoos Web Consulting"><a class="nav" href="/dashboard">&larr; Dashboard</a></div>
 <h1>Review drafts</h1>
-<p class="sub"><a href="/dashboard">&larr; Dashboard</a> &middot; Edit anything you like, then approve. Approved drafts go into the Instantly CSV with your edits.</p>
+<p class="sub">Edit anything you like, then approve. Approved drafts go into the Instantly CSV with your edits.</p>
 <div class="bar" id="bar"></div><div id="list"><p class="empty">Loading&hellip;</p></div>
 <script>
 var STATUSES=["pending","approved","rejected","exported"], cur="pending", counts={};
