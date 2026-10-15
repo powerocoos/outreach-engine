@@ -115,8 +115,8 @@ const configured = (env) => ({
 // The Graph version is a variable because Meta retires old versions; bump META_GRAPH_VERSION if calls start failing.
 const graph = (env, path) => `https://graph.facebook.com/${env.META_GRAPH_VERSION || "v23.0"}/${path}`;
 
-async function graphCall(env, path, params, method = "POST") {
-  const body = new URLSearchParams({ ...params, access_token: env.META_PAGE_TOKEN });
+async function graphCall(env, path, params, method = "POST", token = env.META_PAGE_TOKEN) {
+  const body = new URLSearchParams({ ...params, access_token: token });
   const url = method === "GET" ? graph(env, path) + "?" + body : graph(env, path);
   const res = await fetch(url, method === "GET" ? {} : { method, body });
   let data = {};
@@ -128,7 +128,13 @@ async function graphCall(env, path, params, method = "POST") {
 }
 
 export async function publishFacebook(env, post) {
-  const data = await graphCall(env, `${env.META_PAGE_ID}/feed`, { message: post.fb_text, link: post.link || post.post_url });
+  // A system-user token can't post to /feed directly; Meta wants the Page's own token, which the system user can fetch.
+  let pageToken = env.META_PAGE_TOKEN;
+  try {
+    const t = await graphCall(env, env.META_PAGE_ID, { fields: "access_token" }, "GET");
+    if (t.access_token) pageToken = t.access_token;
+  } catch { /* already a Page token, or no access: try the configured token as-is */ }
+  const data = await graphCall(env, `${env.META_PAGE_ID}/feed`, { message: post.fb_text, link: post.link || post.post_url }, "POST", pageToken);
   return data.id;
 }
 
