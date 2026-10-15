@@ -1,6 +1,7 @@
 import { normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
 import { REVIEW_PAGE } from "./review_page.js";
 import { analyticsReport } from "./analytics.js";
+import { SOCIAL_DDL, SOCIAL_PAGE, handleSocialIngest, handleSocialKnown, handleSocialList, handleSocialAction } from "./social.js";
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
@@ -145,7 +146,7 @@ const DRAFTS_DDL = [
 const schemaDone = new WeakSet();
 async function ensureSchema(env) {
   if (schemaDone.has(env.DB)) return;
-  for (const sql of DRAFTS_DDL) await env.DB.prepare(sql).run();
+  for (const sql of [...DRAFTS_DDL, ...SOCIAL_DDL]) await env.DB.prepare(sql).run();
   schemaDone.add(env.DB);
 }
 
@@ -424,6 +425,8 @@ export default {
     if (pathname === "/webhook/instantly" && request.method === "POST") return handleWebhook(request, env, ctx);
     if (pathname === "/api/leads" && request.method === "POST") return handleImport(request, env);
     if (pathname === "/api/drafts" && request.method === "POST") { await ensureSchema(env); return handleDraftImport(request, env); }
+    if (pathname === "/api/social" && request.method === "POST") { await ensureSchema(env); return handleSocialIngest(request, env); }
+    if (pathname === "/api/social/known" && request.method === "GET") { await ensureSchema(env); return handleSocialKnown(request, env); }
     if (pathname === "/api/state" && ["GET", "PUT"].includes(request.method)) return handleState(request, env);
     let m;
     if ((m = pathname.match(/^\/api\/media\/([^/]+)$/)) && request.method === "PUT") return handleMediaUpload(request, env, m[1]);
@@ -435,6 +438,11 @@ export default {
     if (pathname === "/review") {
       return new Response(REVIEW_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
     }
+    if (pathname === "/social") {
+      return new Response(SOCIAL_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
+    }
+    if (pathname === "/api/social" && request.method === "GET") { await ensureSchema(env); return handleSocialList(request, env); }
+    if ((m = pathname.match(/^\/api\/social\/(\d+)$/)) && request.method === "POST") { await ensureSchema(env); return handleSocialAction(request, env, Number(m[1])); }
     if (pathname === "/api/review" && request.method === "GET") { await ensureSchema(env); return handleReviewList(request, env); }
     if ((m = pathname.match(/^\/api\/review\/(\d+)$/)) && request.method === "POST") { await ensureSchema(env); return handleReviewAction(request, env, Number(m[1])); }
     if (pathname === "/api/send/instantly" && request.method === "POST") { await ensureSchema(env); return handleSendToInstantly(request, env); }
@@ -471,7 +479,7 @@ h1{font-size:24px;font-weight:700;color:var(--acc);margin:0 0 4px}h2{font-size:1
 .tile b{display:block;font-size:28px;font-weight:700;color:var(--acc)}.tile span{color:var(--mut);font-size:13px}
 table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{color:var(--mut);font-weight:600;font-size:13px}
 .top{display:flex;align-items:center;gap:14px;padding-bottom:16px;margin-bottom:20px;border-bottom:1px solid var(--line)}.top img{height:44px;width:auto}@media(prefers-color-scheme:dark){.top img{background:#fff;border-radius:8px;padding:4px 8px}}.top a.nav{margin-left:auto;background:var(--cta);color:#fff;text-decoration:none;border-radius:999px;padding:8px 18px;font-weight:500;font-size:14px}a{color:var(--cta)}</style></head><body>
-<div class="top"><img src="https://images.squarespace-cdn.com/content/v1/5dc50cc1afeeeb552425247c/d8489d11-b4c0-4699-abf0-75e870088b4f/Ocoos+Web+Consulting+Logo+01+-+smaller-min.png?format=500w" alt="Ocoos Web Consulting"><a class="nav" href="/review">Review drafts &rarr;</a></div>
+<div class="top"><img src="https://images.squarespace-cdn.com/content/v1/5dc50cc1afeeeb552425247c/d8489d11-b4c0-4699-abf0-75e870088b4f/Ocoos+Web+Consulting+Logo+01+-+smaller-min.png?format=500w" alt="Ocoos Web Consulting"><a class="nav" href="/social" style="margin-left:auto;background:transparent;color:var(--cta);border:1px solid var(--cta)">Social posts</a><a class="nav" href="/review" style="margin-left:0">Review drafts &rarr;</a></div>
 <h1>Outreach dashboard</h1><div id="app">Loading…</div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));

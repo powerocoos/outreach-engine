@@ -67,3 +67,26 @@ CREATE TABLE IF NOT EXISTS drafts (
   decided_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_drafts_status ON drafts(status);
+
+-- Blog posts turned into Facebook/Instagram posts (pending -> approved -> posted / rejected)
+CREATE TABLE IF NOT EXISTS social_posts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_url TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  summary TEXT,
+  image_url TEXT,
+  categories TEXT,
+  pub_date TEXT,
+  link TEXT,                      -- UTM-tagged link used in the Facebook post
+  fb_text TEXT NOT NULL,
+  ig_text TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  fb_post_id TEXT,
+  ig_post_id TEXT,
+  error TEXT,
+  edited INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  decided_at TEXT,
+  posted_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_social_status ON social_posts(status);

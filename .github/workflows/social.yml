@@ -1,0 +1,29 @@
+name: Social drafts
+
+on:
+  schedule:
+    - cron: "30 10 * * *"   # daily 10:30 UTC (6:30 AM Eastern); only drafts posts it has not seen
+  workflow_dispatch: {}
+
+concurrency:
+  group: social-drafts
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Draft Facebook/Instagram posts for new blog posts and send them to the dashboard
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+        run: python pipeline/social.py

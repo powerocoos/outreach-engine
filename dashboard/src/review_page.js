@@ -1,9 +1,5 @@
-// Draft review page. The client script avoids template literals so it can live inside this one.
-export const REVIEW_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
-<title>Review drafts</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
+// Shared look for the review pages.
+export const BASE_CSS = `
 :root{--bg:#fff;--fg:#111827;--mut:#4b5563;--card:#fff;--line:#e5e7eb;--soft:#f3f4f6;--acc:#155387;--cta:#0066cc;--ok:#15803d;--bad:#b91c1c}
 @media(prefers-color-scheme:dark){:root{--bg:#0f1720;--fg:#f3f4f6;--mut:#9ca3af;--card:#16212d;--line:#243242;--soft:#1b2836;--acc:#7cb7ee;--cta:#3b8fe0;--ok:#4ade80;--bad:#f87171}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:300 15px/1.6 'Poppins',system-ui,sans-serif;padding:24px 16px;max-width:900px;margin-inline:auto}
@@ -25,8 +21,16 @@ textarea{min-height:120px;resize:vertical}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.wc{font-size:12px;color:var(--mut);float:right;text-transform:none;letter-spacing:0}
 .camp{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--soft);border:1px solid var(--line);border-radius:20px;padding:12px 16px;margin:0 0 16px}.camp b{color:var(--acc)}.pill{border-radius:999px;padding:2px 12px;font-size:13px;font-weight:500;background:var(--line)}.pill.on{background:var(--ok);color:#fff}.pill.warn{background:var(--bad);color:#fff}
 .msg{color:var(--bad);font-size:13px;margin-top:8px}.empty{color:var(--mut);padding:30px 0;text-align:center}
-.top{display:flex;align-items:center;gap:14px;padding-bottom:16px;margin-bottom:20px;border-bottom:1px solid var(--line)}.top img{height:44px;width:auto}@media(prefers-color-scheme:dark){.top img{background:#fff;border-radius:8px;padding:4px 8px}}.top a.nav{margin-left:auto;background:var(--cta);color:#fff;text-decoration:none;border-radius:999px;padding:8px 18px;font-weight:500;font-size:14px}</style></head><body>
-<div class="top"><img src="https://images.squarespace-cdn.com/content/v1/5dc50cc1afeeeb552425247c/d8489d11-b4c0-4699-abf0-75e870088b4f/Ocoos+Web+Consulting+Logo+01+-+smaller-min.png?format=500w" alt="Ocoos Web Consulting"><a class="nav" href="/dashboard">&larr; Dashboard</a></div>
+.top{display:flex;align-items:center;gap:14px;padding-bottom:16px;margin-bottom:20px;border-bottom:1px solid var(--line)}.top img{height:44px;width:auto}@media(prefers-color-scheme:dark){.top img{background:#fff;border-radius:8px;padding:4px 8px}}.top a.nav{margin-left:auto;background:var(--cta);color:#fff;text-decoration:none;border-radius:999px;padding:8px 18px;font-weight:500;font-size:14px}`;
+export const FONT_LINKS = `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">`;
+export const LOGO_HTML = `<div class="top"><img src="https://images.squarespace-cdn.com/content/v1/5dc50cc1afeeeb552425247c/d8489d11-b4c0-4699-abf0-75e870088b4f/Ocoos+Web+Consulting+Logo+01+-+smaller-min.png?format=500w" alt="Ocoos Web Consulting"><a class="nav" href="/dashboard">&larr; Dashboard</a></div>`;
+
+// Draft review page. The client script avoids template literals so it can live inside this one.
+export const REVIEW_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Review drafts</title>
+${FONT_LINKS}<style>${BASE_CSS}</style></head><body>
+${LOGO_HTML}
 <h1>Review drafts</h1>
 <p class="sub">Edit anything you like, then approve. Approved drafts go into the Instantly CSV with your edits.</p>
 <div class="camp" id="camp"></div><div class="bar" id="bar"></div><div id="list"><p class="empty">Loading&hellip;</p></div>
