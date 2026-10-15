@@ -280,3 +280,35 @@ test("polling sync records events once and updates lead status", async () => {
     assert.equal((await e.DB.prepare("SELECT COUNT(*) n FROM touches WHERE event='replied'").first()).n, 1);
   } finally { globalThis.fetch = realFetch; }
 });
+
+test("analytics: not configured, then service-account token + shaped report", async () => {
+  const none = await (await worker.fetch(new Request("https://x/api/analytics", { headers: { authorization: basic } }), env(), ctx)).json();
+  assert.equal(none.configured, false);
+
+  const kp = await crypto.subtle.generateKey({ name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }, true, ["sign", "verify"]);
+  const der = Buffer.from(await crypto.subtle.exportKey("pkcs8", kp.privateKey)).toString("base64");
+  const pem = `-----BEGIN PRIVATE KEY-----\n${der.match(/.{1,64}/g).join("\n")}\n-----END PRIVATE KEY-----\n`;
+  const e = { ...env(), GA_PROPERTY_ID: "123", GA_SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: "sa@p.iam.gserviceaccount.com", private_key: pem }) };
+  const urls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    urls.push(String(url));
+    if (String(url).includes("oauth2.googleapis.com")) return new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), { status: 200 });
+    const b = JSON.parse(init.body);
+    if (b.dimensionFilter) return new Response(JSON.stringify({ rows: [{ metricValues: [{ value: "4" }, { value: "1" }] }] }), { status: 200 });
+    if (b.dimensions && b.dimensions[0].name === "date") return new Response(JSON.stringify({ rows: [{ dimensionValues: [{ value: "20261014" }], metricValues: [{ value: "9" }] }] }), { status: 200 });
+    if (b.dimensions) return new Response(JSON.stringify({ rows: [{ dimensionValues: [{ value: "google / organic" }], metricValues: [{ value: "7" }, { value: "2" }] }] }), { status: 200 });
+    return new Response(JSON.stringify({ rows: [{ metricValues: [{ value: "20" }, { value: "15" }, { value: "3" }, { value: "0.456" }] }] }), { status: 200 });
+  };
+  try {
+    const g = await (await worker.fetch(new Request("https://x/api/analytics?days=7", { headers: { authorization: basic } }), e, ctx)).json();
+    assert.equal(g.configured, true);
+    assert.deepEqual(g.totals, { sessions: 20, users: 15, keyEvents: 3, engagementRate: 45.6 });
+    assert.deepEqual(g.outreach, { sessions: 4, keyEvents: 1 });
+    assert.equal(g.daily[0].date, "2026-10-14");
+    assert.equal(g.sources[0].name, "google / organic");
+    assert.ok(urls.some((u) => u.includes("/properties/123:runReport")));
+    const unauth = await worker.fetch(new Request("https://x/api/analytics"), e, ctx);
+    assert.equal(unauth.status, 401);
+  } finally { globalThis.fetch = realFetch; }
+});

@@ -1,5 +1,6 @@
 import { normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
 import { REVIEW_PAGE } from "./review_page.js";
+import { analyticsReport } from "./analytics.js";
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
@@ -441,6 +442,10 @@ export default {
       if (!csrfOk(request)) return json({ error: "missing header" }, 403);
       return json(await syncInstantly(env, ctx));
     }
+    if (pathname === "/api/analytics" && request.method === "GET") {
+      try { return json(await analyticsReport(env, Number(new URL(request.url).searchParams.get("days")) || 30)); }
+      catch (e) { return json({ configured: true, error: String(e.message || e).slice(0, 120) }); }
+    }
     if (pathname === "/api/campaign" && request.method === "GET") return handleCampaign(request, env);
     if (pathname === "/api/campaign/launch" && request.method === "POST") return handleCampaignAction(request, env, "activate");
     if (pathname === "/api/campaign/pause" && request.method === "POST") return handleCampaignAction(request, env, "pause");
@@ -477,6 +482,14 @@ document.getElementById('app').innerHTML=
 '<div class="grid">'+tile(t.leads,'Leads')+tile(t.sent,'Contacted')+tile(t.videoViews,'Video views')+tile(t.replied,'Replies')+tile(r.reply+'%','Reply rate')+tile(t.booked,'Calls booked')+tile(t.won,'Won')+tile(r.bounce+'%','Bounce rate')+'</div>'+
 '<h2>Hook performance</h2>'+table(['Hook angle','Contacted','Replies'],d.byAngle.map(a=>[a.angle||'—',a.sent,a.replies]))+
 '<h2>By city</h2>'+table(['City','Leads','Responded'],d.byCity.map(c=>[c.city||'—',c.leads,c.responded||0]))+
-'<h2>Recent activity</h2>'+table(['When','Event','Who'],d.recent.map(e=>[e.created_at,e.event,e.who]));
+'<div id="ga"></div><h2>Recent activity</h2>'+table(['When','Event','Who'],d.recent.map(e=>[e.created_at,e.event,e.who]));
+loadGa();
 }).catch(e=>{document.getElementById('app').textContent='Failed to load: '+e});
+function spark(v){if(!v.length)return '';const m=Math.max(...v,1),w=300,h=48,st=w/Math.max(v.length-1,1);return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none" role="img" aria-label="Daily sessions"><polyline fill="none" stroke="var(--cta)" stroke-width="2" points="'+v.map((x,i)=>(i*st).toFixed(1)+','+(h-3-(x/m)*(h-6)).toFixed(1)).join(' ')+'"/></svg>'}
+function loadGa(){fetch('/api/analytics').then(r=>r.json()).then(g=>{const el=document.getElementById('ga');if(!el)return;
+if(!g.configured){el.innerHTML='';return}
+if(g.error){el.innerHTML='<h2>Website traffic</h2><p style="color:var(--mut)">Analytics unavailable: '+esc(g.error)+'</p>';return}
+el.innerHTML='<h2>Website traffic (last '+g.days+' days)</h2><div class="grid">'+tile(g.totals.sessions,'Sessions')+tile(g.totals.users,'Users')+tile(g.totals.keyEvents,'Key events')+tile(g.totals.engagementRate+'%','Engaged')+tile(g.outreach.sessions,'From outreach emails')+tile(g.outreach.keyEvents,'Outreach key events')+'</div><div style="margin:14px 0">'+spark(g.daily.map(d=>d.sessions))+'</div>'+
+table(['Source / medium','Sessions','Key events'],g.sources.map(x=>[x.name,x.sessions,x.keyEvents]))+'<h2>Top pages</h2>'+table(['Page','Views'],g.pages.map(x=>[x.path,x.views]));
+}).catch(()=>{})}
 </script></body></html>`;
