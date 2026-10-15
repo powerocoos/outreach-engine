@@ -306,6 +306,42 @@ async function handleSendToInstantly(request, env) {
   return json({ ok: failed.length === 0, sent, failed, remaining: rows.length - sent });
 }
 
+// --- Instantly campaign status / launch / pause ------------------------------
+const CAMPAIGN_STATUS = { "-99": "Account suspended", "-2": "Bounce protect", "-1": "Accounts unhealthy", 0: "Draft", 1: "Active", 2: "Paused", 3: "Completed", 4: "Running subsequences" };
+
+async function instantly(env, path, method = "GET") {
+  const res = await fetch(`https://api.instantly.ai/api/v2${path}`, {
+    method, headers: { authorization: `Bearer ${env.INSTANTLY_API_KEY}`, "content-type": "application/json" },
+  });
+  let body = null;
+  try { body = await res.json(); } catch {}
+  return { ok: res.ok, status: res.status, body };
+}
+
+async function handleCampaign(request, env) {
+  if (!env.INSTANTLY_API_KEY || !env.INSTANTLY_CAMPAIGN_ID) return json({ configured: false });
+  const r = await instantly(env, `/campaigns/${env.INSTANTLY_CAMPAIGN_ID}`);
+  if (!r.ok) return json({ configured: true, error: `Instantly ${r.status}` });
+  const c = r.body || {};
+  return json({ configured: true, name: c.name, status: c.status, label: CAMPAIGN_STATUS[c.status] || "Unknown", daily_limit: c.daily_limit ?? null });
+}
+
+async function handleCampaignAction(request, env, action) {
+  if (!csrfOk(request)) return json({ error: "missing header" }, 403);
+  if (!env.INSTANTLY_API_KEY || !env.INSTANTLY_CAMPAIGN_ID) return json({ error: "Instantly is not configured" }, 400);
+  if (action === "activate") {
+    let body = {};
+    try { body = await request.json(); } catch {}
+    if (body.confirm !== "LAUNCH") return json({ error: "Type LAUNCH to confirm" }, 400);
+  }
+  const r = await instantly(env, `/campaigns/${env.INSTANTLY_CAMPAIGN_ID}/${action}`, "POST");
+  if (!r.ok) {
+    const hint = r.status === 403 || r.status === 401 ? " (the API key may need campaign update access)" : "";
+    return json({ error: `Instantly ${r.status}${hint}` }, 502);
+  }
+  return json({ ok: true, action });
+}
+
 async function stats(env) {
   const count = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).first()).n;
   const uniq = (ev) => count("SELECT COUNT(DISTINCT contact_email) n FROM touches WHERE event=?", ev);
@@ -359,6 +395,9 @@ export default {
     if (pathname === "/api/review" && request.method === "GET") { await ensureSchema(env); return handleReviewList(request, env); }
     if ((m = pathname.match(/^\/api\/review\/(\d+)$/)) && request.method === "POST") { await ensureSchema(env); return handleReviewAction(request, env, Number(m[1])); }
     if (pathname === "/api/send/instantly" && request.method === "POST") { await ensureSchema(env); return handleSendToInstantly(request, env); }
+    if (pathname === "/api/campaign" && request.method === "GET") return handleCampaign(request, env);
+    if (pathname === "/api/campaign/launch" && request.method === "POST") return handleCampaignAction(request, env, "activate");
+    if (pathname === "/api/campaign/pause" && request.method === "POST") return handleCampaignAction(request, env, "pause");
     if (pathname === "/api/export/instantly" && request.method === "POST") { await ensureSchema(env); return handleExport(request, env); }
     if (pathname === "/" || pathname === "/dashboard") {
       return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });

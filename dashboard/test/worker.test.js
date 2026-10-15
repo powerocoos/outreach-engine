@@ -234,3 +234,28 @@ test("send approved drafts to Instantly via API", async () => {
     assert.equal((await e.DB.prepare("SELECT status FROM drafts").first()).status, "exported");
   } finally { globalThis.fetch = realFetch; }
 });
+
+test("campaign status, launch needs typed confirmation, pause works", async () => {
+  const e = { ...env(), INSTANTLY_API_KEY: "k", INSTANTLY_CAMPAIGN_ID: "camp-1" };
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({ url, method: init.method || "GET" });
+    return new Response(JSON.stringify({ name: "Test campaign", status: 0, daily_limit: 10 }), { status: 200 });
+  };
+  try {
+    const st = await (await worker.fetch(new Request("https://x/api/campaign", { headers: { authorization: basic } }), e, ctx)).json();
+    assert.equal(st.label, "Draft");
+    assert.equal(st.daily_limit, 10);
+    const noConfirm = await review(e, "/api/campaign/launch", {});
+    assert.equal(noConfirm.status, 400);
+    assert.equal(calls.filter((c) => c.url.endsWith("/activate")).length, 0);
+    const ok = await review(e, "/api/campaign/launch", { confirm: "LAUNCH" });
+    assert.equal(ok.status, 200);
+    assert.ok(calls.some((c) => c.url.endsWith("/campaigns/camp-1/activate") && c.method === "POST"));
+    const paused = await review(e, "/api/campaign/pause", {});
+    assert.equal(paused.status, 200);
+    const unauth = await worker.fetch(new Request("https://x/api/campaign/launch", { method: "POST" }), e, ctx);
+    assert.equal(unauth.status, 401);
+  } finally { globalThis.fetch = realFetch; }
+});

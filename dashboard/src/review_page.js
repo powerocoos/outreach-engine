@@ -23,12 +23,13 @@ label{display:block;font-size:12px;color:var(--mut);text-transform:uppercase;let
 input,textarea{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:inherit}
 textarea{min-height:120px;resize:vertical}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.wc{font-size:12px;color:var(--mut);float:right;text-transform:none;letter-spacing:0}
+.camp{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--soft);border:1px solid var(--line);border-radius:20px;padding:12px 16px;margin:0 0 16px}.camp b{color:var(--acc)}.pill{border-radius:999px;padding:2px 12px;font-size:13px;font-weight:500;background:var(--line)}.pill.on{background:var(--ok);color:#fff}.pill.warn{background:var(--bad);color:#fff}
 .msg{color:var(--bad);font-size:13px;margin-top:8px}.empty{color:var(--mut);padding:30px 0;text-align:center}
 .top{display:flex;align-items:center;gap:14px;padding-bottom:16px;margin-bottom:20px;border-bottom:1px solid var(--line)}.top img{height:44px;width:auto}@media(prefers-color-scheme:dark){.top img{background:#fff;border-radius:8px;padding:4px 8px}}.top a.nav{margin-left:auto;background:var(--cta);color:#fff;text-decoration:none;border-radius:999px;padding:8px 18px;font-weight:500;font-size:14px}</style></head><body>
 <div class="top"><img src="https://images.squarespace-cdn.com/content/v1/5dc50cc1afeeeb552425247c/d8489d11-b4c0-4699-abf0-75e870088b4f/Ocoos+Web+Consulting+Logo+01+-+smaller-min.png?format=500w" alt="Ocoos Web Consulting"><a class="nav" href="/dashboard">&larr; Dashboard</a></div>
 <h1>Review drafts</h1>
 <p class="sub">Edit anything you like, then approve. Approved drafts go into the Instantly CSV with your edits.</p>
-<div class="bar" id="bar"></div><div id="list"><p class="empty">Loading&hellip;</p></div>
+<div class="camp" id="camp"></div><div class="bar" id="bar"></div><div id="list"><p class="empty">Loading&hellip;</p></div>
 <script>
 var STATUSES=["pending","approved","rejected","exported"], cur="pending", counts={};
 function el(t,a,k){var e=document.createElement(t);for(var x in (a||{})){if(x==="text")e.textContent=a[x];else if(x==="cls")e.className=a[x];else e.setAttribute(x,a[x]);}(k||[]).forEach(function(c){e.appendChild(c)});return e}
@@ -66,5 +67,17 @@ function card(d){
 function load(){api("/api/review?status="+cur).then(function(r){return r.json()}).then(function(j){counts=j.counts;renderBar();var list=document.getElementById("list");list.textContent="";
   if(!j.drafts.length)list.appendChild(el("p",{cls:"empty",text:"Nothing here."}));
   j.drafts.forEach(function(d){list.appendChild(card(d))})}).catch(function(e){document.getElementById("list").textContent="Failed to load: "+e})}
-load();
+function loadCamp(){var box=document.getElementById("camp");api("/api/campaign").then(function(r){return r.json()}).then(function(c){box.textContent="";
+  if(!c.configured){box.textContent="Instantly is not connected yet.";return}
+  if(c.error){box.textContent="Campaign status unavailable: "+c.error;return}
+  box.appendChild(el("b",{text:c.name||"Campaign"}));
+  box.appendChild(el("span",{cls:"pill"+(c.status===1?" on":(c.status<0?" warn":"")),text:c.label}));
+  if(c.daily_limit)box.appendChild(el("span",{text:c.daily_limit+" emails/day max"}));
+  box.appendChild(el("span",{cls:"sp"}));
+  function act(path,body){return api(path,{method:"POST",body:JSON.stringify(body||{})}).then(function(r){return r.json()}).then(function(j){if(j.error)alert(j.error);loadCamp()})}
+  if(c.status===1){var p=el("button",{cls:"act bad",type:"button",text:"Pause campaign"});p.onclick=function(){p.disabled=true;act("/api/campaign/pause")};box.appendChild(p)}
+  else if(c.status===0||c.status===2){var l=el("button",{cls:"act primary",type:"button",text:c.status===0?"Launch campaign":"Resume campaign"});
+    l.onclick=function(){var t=prompt("This starts sending real emails to everyone in the campaign"+(c.daily_limit?" (up to "+c.daily_limit+" per day)":"")+". Make sure mailbox warm-up has had about 2 weeks and you have reviewed the first drafts.\\n\\nType LAUNCH to confirm.");if(t!=="LAUNCH")return;l.disabled=true;act("/api/campaign/launch",{confirm:"LAUNCH"})};box.appendChild(l)}
+  }).catch(function(){box.textContent="Campaign status unavailable"})}
+load();loadCamp();
 </script></body></html>`;
