@@ -67,20 +67,25 @@ export function shapeAnalytics(totals, daily, sources, pages, outreach) {
 
 let reportCache = { key: "", at: 0, data: null };
 
+// Only count traffic from this site. A tracking ID shared with another site would otherwise mix their visits in.
+export const hostFilter = (host) => ({ filter: { fieldName: "hostName", stringFilter: { matchType: "CONTAINS", value: host } } });
+export const withHost = (host, extra) => ({ dimensionFilter: extra ? { andGroup: { expressions: [hostFilter(host), extra] } } : hostFilter(host) });
+
 export async function analyticsReport(env, days = 30) {
   if (!env.GA_SERVICE_ACCOUNT_JSON || !env.GA_PROPERTY_ID) return { configured: false };
   const d = [30, 7, 90].includes(days) ? days : 30;
-  const key = `${env.GA_PROPERTY_ID}:${d}`;
+  const host = env.GA_HOSTNAME || "ocooswebconsulting.com";
+  const key = `${env.GA_PROPERTY_ID}:${d}:${host}`;
   if (reportCache.key === key && Date.now() - reportCache.at < 10 * 60 * 1000) return reportCache.data;
   const token = await gaAccessToken(env);
   const dateRanges = [{ startDate: `${d}daysAgo`, endDate: "today" }];
   const [totals, daily, sources, pages, outreach] = await Promise.all([
-    runReport(env, token, { dateRanges, metrics: [{ name: "sessions" }, { name: "totalUsers" }, { name: "keyEvents" }, { name: "engagementRate" }] }),
-    runReport(env, token, { dateRanges, dimensions: [{ name: "date" }], metrics: [{ name: "sessions" }], orderBys: [{ dimension: { dimensionName: "date" } }] }),
-    runReport(env, token, { dateRanges, dimensions: [{ name: "sessionSourceMedium" }], metrics: [{ name: "sessions" }, { name: "keyEvents" }], orderBys: [{ metric: { metricName: "sessions" }, desc: true }], limit: 8 }),
-    runReport(env, token, { dateRanges, dimensions: [{ name: "pagePath" }], metrics: [{ name: "screenPageViews" }], orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }], limit: 8 }),
+    runReport(env, token, { dateRanges, metrics: [{ name: "sessions" }, { name: "totalUsers" }, { name: "keyEvents" }, { name: "engagementRate" }], ...withHost(host) }),
+    runReport(env, token, { dateRanges, dimensions: [{ name: "date" }], metrics: [{ name: "sessions" }], orderBys: [{ dimension: { dimensionName: "date" } }], ...withHost(host) }),
+    runReport(env, token, { dateRanges, dimensions: [{ name: "sessionSourceMedium" }], metrics: [{ name: "sessions" }, { name: "keyEvents" }], orderBys: [{ metric: { metricName: "sessions" }, desc: true }], limit: 8, ...withHost(host) }),
+    runReport(env, token, { dateRanges, dimensions: [{ name: "pagePath" }], metrics: [{ name: "screenPageViews" }], orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }], limit: 8, ...withHost(host) }),
     runReport(env, token, { dateRanges, metrics: [{ name: "sessions" }, { name: "keyEvents" }],
-      dimensionFilter: { filter: { fieldName: "sessionSource", stringFilter: { matchType: "EXACT", value: "outreach" } } } }),
+      ...withHost(host, { filter: { fieldName: "sessionSource", stringFilter: { matchType: "EXACT", value: "outreach" } } }) }),
   ]);
   const data = { configured: true, days: d, ...shapeAnalytics(totals, daily, sources, pages, outreach) };
   reportCache = { key, at: Date.now(), data };

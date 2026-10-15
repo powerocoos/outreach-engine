@@ -290,12 +290,14 @@ test("analytics: not configured, then service-account token + shaped report", as
   const pem = `-----BEGIN PRIVATE KEY-----\n${der.match(/.{1,64}/g).join("\n")}\n-----END PRIVATE KEY-----\n`;
   const e = { ...env(), GA_PROPERTY_ID: "123", GA_SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: "sa@p.iam.gserviceaccount.com", private_key: pem }) };
   const urls = [];
+  const reports = [];
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init = {}) => {
     urls.push(String(url));
     if (String(url).includes("oauth2.googleapis.com")) return new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), { status: 200 });
     const b = JSON.parse(init.body);
-    if (b.dimensionFilter) return new Response(JSON.stringify({ rows: [{ metricValues: [{ value: "4" }, { value: "1" }] }] }), { status: 200 });
+    reports.push(b);
+    if (b.dimensionFilter && b.dimensionFilter.andGroup) return new Response(JSON.stringify({ rows: [{ metricValues: [{ value: "4" }, { value: "1" }] }] }), { status: 200 });
     if (b.dimensions && b.dimensions[0].name === "date") return new Response(JSON.stringify({ rows: [{ dimensionValues: [{ value: "20261014" }], metricValues: [{ value: "9" }] }] }), { status: 200 });
     if (b.dimensions) return new Response(JSON.stringify({ rows: [{ dimensionValues: [{ value: "google / organic" }], metricValues: [{ value: "7" }, { value: "2" }] }] }), { status: 200 });
     return new Response(JSON.stringify({ rows: [{ metricValues: [{ value: "20" }, { value: "15" }, { value: "3" }, { value: "0.456" }] }] }), { status: 200 });
@@ -308,6 +310,9 @@ test("analytics: not configured, then service-account token + shaped report", as
     assert.equal(g.daily[0].date, "2026-10-14");
     assert.equal(g.sources[0].name, "google / organic");
     assert.ok(urls.some((u) => u.includes("/properties/123:runReport")));
+    assert.equal(reports.length, 5);
+    const hostOf = (b) => JSON.stringify(b.dimensionFilter);
+    for (const b of reports) assert.match(hostOf(b), /"fieldName":"hostName".*"value":"ocooswebconsulting\.com"/);
     const unauth = await worker.fetch(new Request("https://x/api/analytics"), e, ctx);
     assert.equal(unauth.status, 401);
   } finally { globalThis.fetch = realFetch; }
