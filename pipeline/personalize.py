@@ -122,12 +122,15 @@ def claude_draft(lead, findings, api_key, video_url=None):
     status, _, _, raw = http_request(
         "https://api.anthropic.com/v1/messages", method="POST", timeout=60,
         headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
-        body={"model": MODEL, "max_tokens": 1200, "system": SYSTEM_PROMPT,
+        body={"model": MODEL, "max_tokens": 4000, "system": SYSTEM_PROMPT,
               "messages": [{"role": "user", "content": json.dumps(payload)}]},
     )
     if status != 200:
         raise RuntimeError(f"Anthropic API {status}: {raw[:200].decode('utf-8', 'ignore')}")
-    text = json.loads(raw)["content"][0]["text"]
+    blocks = json.loads(raw).get("content", [])
+    text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+    if "{" not in text:
+        raise RuntimeError("Claude returned no text answer (blocks: %s)" % [b.get("type") for b in blocks])
     text = text[text.find("{"): text.rfind("}") + 1]
     return json.loads(text)
 
@@ -149,8 +152,12 @@ def run(use_template):
             print(f"skip {lead['company']}: no verified findings")
             continue
         video_url = lead["video_url"]
-        draft = (template_draft(lead, findings, video_url) if use_template
-                 else claude_draft(lead, findings, api_key, video_url))
+        try:
+            draft = (template_draft(lead, findings, video_url) if use_template
+                     else claude_draft(lead, findings, api_key, video_url))
+        except (RuntimeError, ValueError) as e:
+            print(f"error {lead['company']}: {e}")
+            continue
         problems = validate_draft(draft, findings, video_url)
         if problems:
             print(f"reject {lead['company']}: {problems}")
