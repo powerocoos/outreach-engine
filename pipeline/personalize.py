@@ -1,6 +1,7 @@
 """Stage 3: write the 3-email sequence from VERIFIED findings only, then queue for human review.
 
 Usage:
+    python personalize.py --approve "1,3"   # mark reviewed drafts approved (or "all")
     python personalize.py              # uses Claude (needs ANTHROPIC_API_KEY)
     python personalize.py --template   # deterministic template, no API call
     python personalize.py --export review.csv   # export drafts for approval
@@ -199,6 +200,20 @@ def export_instantly(path):
         print("Before sending, set in .env:", ", ".join(gaps))
 
 
+def approve(ids):
+    """Mark drafts approved by lead id ("1,3,7") or all of them ("all")."""
+    conn = connect()
+    if ids.strip().lower() == "all":
+        cur = conn.execute("UPDATE drafts SET approved=1")
+    else:
+        wanted = [int(x) for x in ids.replace(" ", "").split(",") if x]
+        cur = conn.execute(
+            f"UPDATE drafts SET approved=1 WHERE lead_id IN ({','.join('?' * len(wanted))})", wanted)
+    conn.commit()
+    n = conn.execute("SELECT COUNT(*) FROM drafts WHERE approved=1").fetchone()[0]
+    print(f"Approved {cur.rowcount} draft(s). {n} approved in total.")
+
+
 def export_review(path):
     conn = connect()
     rows = conn.execute(
@@ -218,8 +233,11 @@ if __name__ == "__main__":
     ap.add_argument("--template", action="store_true")
     ap.add_argument("--export")
     ap.add_argument("--export-instantly")
+    ap.add_argument("--approve", help='lead ids to approve, e.g. "1,3,7,8", or "all"')
     args = ap.parse_args()
-    if args.export_instantly:
+    if args.approve:
+        approve(args.approve)
+    elif args.export_instantly:
         export_instantly(args.export_instantly)
     elif args.export:
         export_review(args.export)
