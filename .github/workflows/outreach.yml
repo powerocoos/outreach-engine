@@ -1,0 +1,45 @@
+name: Outreach run
+
+on:
+  schedule:
+    - cron: "0 10 * * 1-5"   # weekdays 10:00 UTC (6:00 AM Eastern)
+  workflow_dispatch:
+    inputs:
+      category:
+        description: "Business type for a one-off run (leave blank to use config/targets.json)"
+        required: false
+      city:
+        description: "City, e.g. Ocala, FL"
+        required: false
+      max:
+        description: "Max businesses to look at"
+        required: false
+        default: "20"
+
+concurrency:
+  group: outreach-run
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Find leads, audit sites, draft emails, send drafts to the dashboard
+        env:
+          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          PAGESPEED_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          TARGET_CATEGORY: ${{ github.event.inputs.category }}
+          TARGET_CITY: ${{ github.event.inputs.city }}
+          TARGET_MAX: ${{ github.event.inputs.max }}
+        run: python pipeline/run_all.py

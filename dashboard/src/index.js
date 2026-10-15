@@ -1,4 +1,5 @@
-import { normalizeEvent, shouldAlert, alertText, rate, safeEqual, isValidToken } from "./logic.js";
+import { normalizeEvent, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
+import { REVIEW_PAGE } from "./review_page.js";
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
@@ -130,6 +131,142 @@ async function handleMediaFile(request, env, token) {
   return new Response(obj.body, { headers });
 }
 
+
+// --- Draft review ---------------------------------------------------------------
+const DRAFTS_DDL = [
+  `CREATE TABLE IF NOT EXISTS drafts (id INTEGER PRIMARY KEY AUTOINCREMENT, contact_email TEXT NOT NULL UNIQUE,
+    company TEXT NOT NULL, website TEXT, city TEXT, category TEXT, angle TEXT, mobile_score INTEGER, rating REAL,
+    review_count INTEGER, findings TEXT, subject TEXT NOT NULL, email1 TEXT NOT NULL, email2 TEXT NOT NULL,
+    email3 TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', edited INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, decided_at TEXT)`,
+  "CREATE INDEX IF NOT EXISTS idx_drafts_status ON drafts(status)",
+];
+const schemaDone = new WeakSet();
+async function ensureSchema(env) {
+  if (schemaDone.has(env.DB)) return;
+  for (const sql of DRAFTS_DDL) await env.DB.prepare(sql).run();
+  schemaDone.add(env.DB);
+}
+
+const bearerOk = (request, env) =>
+  safeEqual((request.headers.get("authorization") || "").replace(/^Bearer /, ""), env.API_TOKEN);
+
+// Pipeline -> dashboard: new drafts land as "pending". Existing rows are never overwritten,
+// so a decision you already made is not undone by a re-run.
+async function handleDraftImport(request, env) {
+  if (!bearerOk(request, env)) return json({ error: "unauthorized" }, 401);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "bad json" }, 400); }
+  let added = 0, skipped = 0;
+  for (const d of (body.drafts || []).slice(0, 200)) {
+    if (!d.contact_email || !d.company || draftProblems(d).length) { skipped++; continue; }
+    const r = await env.DB.prepare(
+      `INSERT OR IGNORE INTO drafts (contact_email, company, website, city, category, angle, mobile_score,
+         rating, review_count, findings, subject, email1, email2, email3) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    ).bind(String(d.contact_email).toLowerCase(), d.company, d.website ?? null, d.city ?? null, d.category ?? null,
+           d.angle ?? null, d.mobile_score ?? null, d.rating ?? null, d.review_count ?? null,
+           JSON.stringify(Array.isArray(d.findings) ? d.findings : []),
+           d.subject, d.email1, d.email2, d.email3).run();
+    if (r.meta.changes) added++; else skipped++;
+  }
+  return json({ ok: true, added, skipped });
+}
+
+// Pipeline run state (the SQLite file) lives in R2 so runs from any machine, or GitHub Actions, share it.
+const STATE_KEY = "state/outreach.db";
+async function handleState(request, env) {
+  if (!bearerOk(request, env)) return json({ error: "unauthorized" }, 401);
+  if (request.method === "PUT") {
+    await env.MEDIA.put(STATE_KEY, request.body, { httpMetadata: { contentType: "application/octet-stream" } });
+    return json({ ok: true });
+  }
+  const obj = await env.MEDIA.get(STATE_KEY);
+  if (!obj) return new Response("no state yet", { status: 404 });
+  return new Response(obj.body, { headers: { "content-type": "application/octet-stream" } });
+}
+
+const csrfOk = (request) => request.headers.get("x-requested-with") === "review";
+
+async function handleReviewList(request, env) {
+  const status = new URL(request.url).searchParams.get("status") || "pending";
+  if (!REVIEW_STATUSES.includes(status)) return json({ error: "bad status" }, 400);
+  const counts = Object.fromEntries(REVIEW_STATUSES.map((s) => [s, 0]));
+  for (const r of (await env.DB.prepare("SELECT status, COUNT(*) n FROM drafts GROUP BY status").all()).results) {
+    counts[r.status] = r.n;
+  }
+  const rows = (await env.DB.prepare(
+    "SELECT * FROM drafts WHERE status=? ORDER BY id LIMIT 100").bind(status).all()).results;
+  const drafts = rows.map((r) => ({ ...r, findings: safeJson(r.findings) }));
+  return json({ counts, drafts });
+}
+
+function safeJson(t) { try { return JSON.parse(t) ?? []; } catch { return []; } }
+
+async function handleReviewAction(request, env, id) {
+  if (!csrfOk(request)) return json({ error: "missing header" }, 403);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "bad json" }, 400); }
+  if (!REVIEW_ACTIONS.includes(body.action)) return json({ error: "bad action" }, 400);
+  const d = await env.DB.prepare("SELECT * FROM drafts WHERE id=?").bind(id).first();
+  if (!d) return json({ error: "not found" }, 404);
+
+  const next = { subject: d.subject, email1: d.email1, email2: d.email2, email3: d.email3 };
+  let edited = d.edited;
+  if (body.action === "save" || body.action === "approve") {
+    for (const k of Object.keys(next)) {
+      if (typeof body[k] === "string" && body[k] !== d[k]) { next[k] = body[k]; edited = 1; }
+    }
+  }
+  if (body.action === "approve") {
+    const problems = draftProblems(next);
+    if (problems.length) return json({ error: problems.join("; ") }, 422);
+    const lead = await env.DB.prepare("SELECT status FROM leads WHERE contact_email=?").bind(d.contact_email).first();
+    if (lead && lead.status === "dead") return json({ error: "this contact bounced or unsubscribed" }, 409);
+  }
+  const status = { approve: "approved", reject: "rejected", reset: "pending", save: d.status }[body.action];
+  if (body.action === "save" || body.action === "approve") {
+    await env.DB.prepare("UPDATE drafts SET subject=?, email1=?, email2=?, email3=?, edited=? WHERE id=?")
+      .bind(next.subject, next.email1, next.email2, next.email3, edited, id).run();
+  }
+  if (body.action !== "save") {
+    await env.DB.prepare("UPDATE drafts SET status=?, decided_at=CURRENT_TIMESTAMP WHERE id=?").bind(status, id).run();
+  }
+  if (body.action === "approve") {
+    // Approved drafts become tracked leads so webhook events and stats can match them.
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO leads (company, contact_email, website, city, category, hook_angle, mobile_score)
+       VALUES (?,?,?,?,?,?,?)`
+    ).bind(d.company, d.contact_email, d.website, d.city, d.category, d.angle, d.mobile_score).run();
+  }
+  return json({ ok: true, status });
+}
+
+// Downloads approved drafts as an Instantly CSV and marks them exported so they are not imported twice.
+async function handleExport(request, env) {
+  if (!csrfOk(request)) return json({ error: "missing header" }, 403);
+  const origin = new URL(request.url).origin;
+  const rows = (await env.DB.prepare(
+    `SELECT d.*, m.token FROM drafts d
+     LEFT JOIN (SELECT contact_email, MAX(rowid) rid, token FROM media GROUP BY contact_email) m
+       ON m.contact_email = d.contact_email
+     LEFT JOIN leads l ON l.contact_email = d.contact_email
+     WHERE d.status='approved' AND COALESCE(l.status,'') != 'dead' ORDER BY d.id`
+  ).all()).results;
+  const csv = toCsv(rows.map((r) => ({
+    email: r.contact_email, first_name: "", company_name: r.company, website: r.website, city: r.city,
+    category: r.category, angle: r.angle, video_url: r.token ? `${origin}/v/${r.token}` : "",
+    subject: r.subject, email1: r.email1, email2: r.email2, email3: r.email3,
+  })));
+  for (const r of rows) {
+    await env.DB.prepare("UPDATE drafts SET status='exported', decided_at=CURRENT_TIMESTAMP WHERE id=?").bind(r.id).run();
+  }
+  return new Response(csv, { headers: {
+    "content-type": "text/csv; charset=utf-8",
+    "content-disposition": 'attachment; filename="instantly.csv"',
+    "x-exported-count": String(rows.length),
+  } });
+}
+
 async function stats(env) {
   const count = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).first()).n;
   const uniq = (ev) => count("SELECT COUNT(DISTINCT contact_email) n FROM touches WHERE event=?", ev);
@@ -168,6 +305,8 @@ export default {
     const { pathname } = new URL(request.url);
     if (pathname === "/webhook/instantly" && request.method === "POST") return handleWebhook(request, env, ctx);
     if (pathname === "/api/leads" && request.method === "POST") return handleImport(request, env);
+    if (pathname === "/api/drafts" && request.method === "POST") { await ensureSchema(env); return handleDraftImport(request, env); }
+    if (pathname === "/api/state" && ["GET", "PUT"].includes(request.method)) return handleState(request, env);
     let m;
     if ((m = pathname.match(/^\/api\/media\/([^/]+)$/)) && request.method === "PUT") return handleMediaUpload(request, env, m[1]);
     if ((m = pathname.match(/^\/v\/([0-9a-f]{32})\.mp4$/)) && request.method === "GET") return handleMediaFile(request, env, m[1]);
@@ -175,6 +314,12 @@ export default {
 
     if (!basicAuthOk(request, env)) return challenge();
     if (pathname === "/api/stats") return json(await stats(env));
+    if (pathname === "/review") {
+      return new Response(REVIEW_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
+    }
+    if (pathname === "/api/review" && request.method === "GET") { await ensureSchema(env); return handleReviewList(request, env); }
+    if ((m = pathname.match(/^\/api\/review\/(\d+)$/)) && request.method === "POST") { await ensureSchema(env); return handleReviewAction(request, env, Number(m[1])); }
+    if (pathname === "/api/export/instantly" && request.method === "POST") { await ensureSchema(env); return handleExport(request, env); }
     if (pathname === "/" || pathname === "/dashboard") {
       return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
     }
@@ -195,7 +340,7 @@ h1{font-size:20px;margin:0 0 20px}h2{font-size:14px;color:var(--mut);text-transf
 .tile b{display:block;font-size:26px;color:var(--acc)}.tile span{color:var(--mut);font-size:13px}
 table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{color:var(--mut);font-weight:500;font-size:13px}
 </style></head><body>
-<h1>Ocoos outreach</h1><div id="app">Loading…</div>
+<h1>Ocoos outreach</h1><p><a href="/review">Review drafts &rarr;</a></p><div id="app">Loading…</div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const tile=(n,l)=>'<div class="tile"><b>'+esc(n)+'</b><span>'+esc(l)+'</span></div>';

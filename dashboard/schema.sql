@@ -43,3 +43,27 @@ CREATE TABLE IF NOT EXISTS media (
   content_type TEXT NOT NULL DEFAULT 'video/mp4',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Drafts waiting for review in the dashboard (pending -> approved/rejected -> exported)
+CREATE TABLE IF NOT EXISTS drafts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contact_email TEXT NOT NULL UNIQUE,
+  company TEXT NOT NULL,
+  website TEXT,
+  city TEXT,
+  category TEXT,
+  angle TEXT,
+  mobile_score INTEGER,
+  rating REAL,
+  review_count INTEGER,
+  findings TEXT,                 -- JSON array of verified findings
+  subject TEXT NOT NULL,
+  email1 TEXT NOT NULL,
+  email2 TEXT NOT NULL,
+  email3 TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  edited INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  decided_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_drafts_status ON drafts(status);

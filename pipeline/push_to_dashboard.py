@@ -1,32 +1,55 @@
-"""Stage 4: push APPROVED leads to the dashboard so webhook events can be matched to them.
+"""Stage 4: send finished drafts to the dashboard Review page.
 
-Usage: DASHBOARD_URL=https://your-worker.workers.dev API_TOKEN=... python push_to_dashboard.py
-Only drafts with approved=1 are pushed. Load these same leads into Instantly separately.
+Usage: python push_to_dashboard.py
+Every drafted lead with an email is uploaded as "pending". You approve, edit or reject it at
+<DASHBOARD_URL>/review; approved drafts download as the Instantly CSV from that page.
+Drafts already on the dashboard are never overwritten, so your decisions stick.
 """
+import json
+
 from common import connect, http_request, require_env
 
-import json
+BATCH = 25
+
+
+def collect(conn):
+    rows = conn.execute(
+        """SELECT l.id lead_id, l.company, l.email AS contact_email, l.website, l.city, l.category,
+                  l.rating, l.review_count, a.mobile_score, a.findings_json,
+                  d.angle, d.subject, d.email1, d.email2, d.email3
+           FROM leads l JOIN drafts d ON d.lead_id=l.id JOIN audits a ON a.lead_id=l.id
+           WHERE l.status='drafted' AND l.email IS NOT NULL"""
+    ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["findings"] = json.loads(d.pop("findings_json") or "[]")
+        out.append(d)
+    return out
 
 
 def main():
     url = require_env("DASHBOARD_URL").rstrip("/")
     token = require_env("API_TOKEN")
     conn = connect()
-    rows = conn.execute(
-        """SELECT l.company, l.email AS contact_email, l.phone, l.website, l.city, l.category,
-                  d.angle AS hook_angle, a.mobile_score
-           FROM leads l JOIN drafts d ON d.lead_id=l.id JOIN audits a ON a.lead_id=l.id
-           WHERE d.approved=1 AND l.email IS NOT NULL"""
-    ).fetchall()
-    leads = [dict(r) for r in rows]
-    status, _, _, raw = http_request(
-        url + "/api/leads", method="POST", headers={"Authorization": f"Bearer {token}"},
-        body={"leads": leads},
-    )
-    print(status, raw.decode("utf-8", "ignore"))
-    if status == 200:
-        conn.execute("UPDATE leads SET status='approved' WHERE id IN (SELECT lead_id FROM drafts WHERE approved=1) AND status='drafted'")
+    drafts = collect(conn)
+    if not drafts:
+        print("No new drafts to send.")
+        return
+    sent = 0
+    for i in range(0, len(drafts), BATCH):
+        chunk = drafts[i:i + BATCH]
+        status, _, _, raw = http_request(
+            url + "/api/drafts", method="POST", headers={"Authorization": f"Bearer {token}"},
+            body={"drafts": [{k: v for k, v in d.items() if k != "lead_id"} for d in chunk]},
+        )
+        print(status, raw.decode("utf-8", "ignore"))
+        if status != 200:
+            raise SystemExit("Dashboard rejected the drafts; nothing marked as sent from this batch.")
+        conn.executemany("UPDATE leads SET status='queued' WHERE id=?", [(d["lead_id"],) for d in chunk])
         conn.commit()
+        sent += len(chunk)
+    print(f"Sent {sent} draft(s). Review them at {url}/review")
 
 
 if __name__ == "__main__":

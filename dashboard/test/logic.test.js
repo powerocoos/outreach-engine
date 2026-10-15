@@ -42,3 +42,15 @@ test("safeEqual", () => {
   assert.equal(safeEqual("", ""), false);            // unset secret must not accept an empty value
   assert.equal(safeEqual(undefined, undefined), false);
 });
+
+import { toCsv, csvCell, draftProblems } from "../src/logic.js";
+test("csv escapes commas, quotes and newlines", () => {
+  assert.equal(csvCell('a,"b"\nc'), '"a,""b""\nc"');
+  assert.match(toCsv([{ email: "a@b.c", subject: "x, y" }]), /a@b\.c,,,,,,,,"x, y"/);
+});
+test("draftProblems flags empty and overlong drafts", () => {
+  const ok = { subject: "s", email1: "a b", email2: "a b", email3: "a b" };
+  assert.deepEqual(draftProblems(ok), []);
+  assert.ok(draftProblems({ ...ok, email2: "" }).length);
+  assert.ok(draftProblems({ ...ok, email3: "w ".repeat(200) }).length);
+});

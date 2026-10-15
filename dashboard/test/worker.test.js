@@ -129,3 +129,87 @@ test("unset secrets reject empty credentials", async () => {
   const imp = await worker.fetch(new Request("https://x/api/leads", { method: "POST", body: "{}" }), e, ctx);
   assert.equal(imp.status, 401);
 });
+
+// --- draft review ---------------------------------------------------------
+const draft = (over = {}) => ({
+  contact_email: "Bob@CoolAir.com", company: "Cool Air", website: "http://coolair.com/", city: "Gainesville",
+  category: "HVAC contractor", angle: "Slow mobile load", mobile_score: 31, rating: 4.9, review_count: 120,
+  findings: ["In Google's mobile speed test, the main content takes about 9.0 seconds to appear."],
+  subject: "Google's mobile test on Cool Air", email1: "Hi there. Worth a look?", email2: "Following up. Want it?",
+  email3: "Last note. Useful?", ...over,
+});
+const post = (e, path, body, headers = {}) => worker.fetch(new Request("https://x" + path, {
+  method: "POST", headers: { authorization: "Bearer tok", ...headers }, body: JSON.stringify(body) }), e, ctx);
+const review = (e, path, body) => post(e, path, body, { authorization: basic, "x-requested-with": "review" });
+
+test("drafts import needs the token and never overwrites a decision", async () => {
+  const e = env();
+  const bad = await worker.fetch(new Request("https://x/api/drafts", { method: "POST", body: "{}" }), e, ctx);
+  assert.equal(bad.status, 401);
+  assert.deepEqual(await (await post(e, "/api/drafts", { drafts: [draft(), draft({ company: "" })] })).json(), { ok: true, added: 1, skipped: 1 });
+  const id = (await e.DB.prepare("SELECT id FROM drafts").first()).id;
+  await review(e, "/api/review/" + id, { action: "reject" });
+  await post(e, "/api/drafts", { drafts: [draft({ subject: "changed" })] });
+  const row = await e.DB.prepare("SELECT status, subject, contact_email FROM drafts").first();
+  assert.equal(row.status, "rejected");
+  assert.equal(row.subject, "Google's mobile test on Cool Air");
+  assert.equal(row.contact_email, "bob@coolair.com");
+});
+
+test("review actions require auth and the csrf header", async () => {
+  const e = env();
+  await post(e, "/api/drafts", { drafts: [draft()] });
+  const noAuth = await worker.fetch(new Request("https://x/api/review/1", { method: "POST", body: "{}" }), e, ctx);
+  assert.equal(noAuth.status, 401);
+  const noHeader = await post(e, "/api/review/1", { action: "approve" }, { authorization: basic });
+  assert.equal(noHeader.status, 403);
+});
+
+test("approve with edits -> lead created -> export csv marks exported", async () => {
+  const e = env();
+  await post(e, "/api/drafts", { drafts: [draft()] });
+  const r = await review(e, "/api/review/1", { action: "approve", email1: 'Hi, "quoted" edit.\nWorth a look?' });
+  assert.deepEqual(await r.json(), { ok: true, status: "approved" });
+  assert.equal((await e.DB.prepare("SELECT hook_angle FROM leads").first()).hook_angle, "Slow mobile load");
+  const list = await (await worker.fetch(new Request("https://x/api/review?status=approved", { headers: { authorization: basic } }), e, ctx)).json();
+  assert.equal(list.counts.approved, 1);
+  assert.equal(list.drafts[0].edited, 1);
+  const ex = await review(e, "/api/export/instantly", {});
+  assert.equal(ex.headers.get("x-exported-count"), "1");
+  const csv = await ex.text();
+  assert.match(csv, /^email,first_name,company_name,/);
+  assert.match(csv, /bob@coolair\.com/);
+  assert.match(csv, /"Hi, ""quoted"" edit\.\nWorth a look\?"/);
+  assert.equal((await e.DB.prepare("SELECT status FROM drafts").first()).status, "exported");
+  const again = await review(e, "/api/export/instantly", {});
+  assert.equal(again.headers.get("x-exported-count"), "0");
+});
+
+test("cannot approve an empty edit or a bounced contact", async () => {
+  const e = env();
+  await post(e, "/api/drafts", { drafts: [draft(), draft({ contact_email: "dead@x.com", company: "Dead Co" })] });
+  const empty = await review(e, "/api/review/1", { action: "approve", email2: "  " });
+  assert.equal(empty.status, 422);
+  await e.DB.prepare("INSERT INTO leads (company, contact_email, status) VALUES ('Dead Co','dead@x.com','dead')").run();
+  const dead = await review(e, "/api/review/2", { action: "approve" });
+  assert.equal(dead.status, 409);
+});
+
+test("review page requires auth", async () => {
+  const r = await worker.fetch(new Request("https://x/review"), env(), ctx);
+  assert.equal(r.status, 401);
+  const ok = await worker.fetch(new Request("https://x/review", { headers: { authorization: basic } }), env(), ctx);
+  assert.equal(ok.status, 200);
+  assert.match(await ok.text(), /Review drafts/);
+});
+
+test("state upload and download use the token", async () => {
+  const e = env(); e.MEDIA = makeR2();
+  const none = await worker.fetch(new Request("https://x/api/state", { headers: { authorization: "Bearer tok" } }), e, ctx);
+  assert.equal(none.status, 404);
+  await worker.fetch(new Request("https://x/api/state", { method: "PUT", headers: { authorization: "Bearer tok" }, body: "dbbytes" }), e, ctx);
+  const got = await worker.fetch(new Request("https://x/api/state", { headers: { authorization: "Bearer tok" } }), e, ctx);
+  assert.equal(await got.text(), "dbbytes");
+  const bad = await worker.fetch(new Request("https://x/api/state"), e, ctx);
+  assert.equal(bad.status, 401);
+});

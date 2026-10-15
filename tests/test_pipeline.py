@@ -208,3 +208,36 @@ class WritingRuleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PushTests(unittest.TestCase):
+    def test_collect_builds_review_payload(self):
+        import push_to_dashboard
+        from common import connect
+        with tempfile.TemporaryDirectory() as d:
+            conn = connect(os.path.join(d, "t.db"))
+            conn.execute("INSERT INTO leads (id, company, email, website, city, category, rating, review_count, status)"
+                         " VALUES (1,'Cool Air','a@b.com','http://x','Gainesville','HVAC',4.9,12,'drafted')")
+            conn.execute("INSERT INTO audits (lead_id, mobile_score, findings_json) VALUES (1, 31, '[\"f1\"]')")
+            conn.execute("INSERT INTO drafts (lead_id, angle, subject, email1, email2, email3) VALUES (1,'a','s','e1','e2','e3')")
+            conn.execute("INSERT INTO leads (id, company, email, status) VALUES (2,'Done','c@d.com','queued')")
+            conn.commit()
+            out = push_to_dashboard.collect(conn)
+            self.assertEqual(len(out), 1)
+            self.assertEqual(out[0]["findings"], ["f1"])
+            self.assertEqual(out[0]["contact_email"], "a@b.com")
+            self.assertEqual(out[0]["review_count"], 12)
+
+    def test_bot_user_agent_is_ocoos(self):
+        import common
+        self.assertIn("Ocoos", common.USER_AGENT)
+        self.assertNotIn("redpanda", common.USER_AGENT.lower())
+
+
+class RunAllTests(unittest.TestCase):
+    def test_targets_override_and_default(self):
+        import run_all
+        self.assertEqual(run_all.load_targets({"TARGET_CATEGORY": "Plumber", "TARGET_CITY": "Ocala, FL", "TARGET_MAX": "5"}),
+                         [{"category": "Plumber", "city": "Ocala, FL", "max": 5}])
+        t = run_all.load_targets({})
+        self.assertTrue(all("category" in x and "city" in x for x in t))

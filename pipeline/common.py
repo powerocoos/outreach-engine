@@ -11,7 +11,7 @@ import envload  # noqa: F401  (loads .env)
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = Path(os.environ.get("OUTREACH_DB", ROOT / "data" / "outreach.db"))
-USER_AGENT = "RedPandaDigitalAuditBot/1.0 (+https://redpandadigital.example/bot)"
+USER_AGENT = "OcoosWebAuditBot/1.0 (+https://ocooswebconsulting.com)"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS leads (
@@ -73,7 +73,7 @@ def connect(path=None):
     return conn
 
 
-def http_request(url, method="GET", headers=None, body=None, timeout=20, retries=2):
+def http_request(url, method="GET", headers=None, body=None, timeout=20, retries=2, max_bytes=2_000_000):
     """Return (status, final_url, response_headers, bytes). Never raises on HTTP errors."""
     hdrs = {"User-Agent": USER_AGENT}
     hdrs.update(headers or {})
@@ -88,7 +88,7 @@ def http_request(url, method="GET", headers=None, body=None, timeout=20, retries
         try:
             req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
             with urllib.request.urlopen(req, timeout=timeout) as r:
-                return r.status, r.geturl(), dict(r.headers), r.read(2_000_000)
+                return r.status, r.geturl(), dict(r.headers), r.read(max_bytes)
         except urllib.error.HTTPError as e:
             return e.code, url, dict(e.headers or {}), e.read(200_000)
         except Exception as e:  # network / timeout / TLS

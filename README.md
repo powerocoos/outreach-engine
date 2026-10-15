@@ -2,27 +2,43 @@
 
 Lead finder -> website audit -> Claude-written sequence (verified findings only) -> human review -> Instantly -> webhook -> dashboard + SMS alert.
 
-## Run the pipeline (from `pipeline/`)
+## How a run works
 
 ```
-export $(grep -v '^#' ../.env | xargs)
-python lead_finder.py --category "HVAC contractor" --city "Gainesville, FL"
-python lead_finder.py --category "HVAC contractor" --city "Ocala, FL"
+find leads (Google Places) -> audit sites (PageSpeed + HTML) -> Claude drafts 3 emails -> dashboard /review
+-> you approve or edit -> "Download Instantly CSV" -> import into the Instantly campaign
+```
+
+### Automatic (GitHub Actions)
+
+`.github/workflows/outreach.yml` runs on GitHub's servers every weekday morning, or on demand from the repo's
+**Actions** tab (Run workflow; you can type a different business type and city for that run). Edit
+`config/targets.json` to change the default businesses and cities.
+
+Add these under the repo's Settings > Secrets and variables > Actions > New repository secret:
+`GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`, `DASHBOARD_URL`, `API_TOKEN`.
+
+The run keeps its database in the dashboard's storage (`/api/state`), so nothing lives on a laptop.
+
+### By hand (from `pipeline/`, with a `.env`)
+
+```
+python run_all.py                        # the same full run the Action does
+python lead_finder.py --category "HVAC contractor" --city "Gainesville, FL"   # or one step at a time
 python audit.py --limit 50
-python capture.py --limit 20            # phone-sized screen recording per lead (needs playwright + chromium; ffmpeg optional)
-python upload_media.py                  # hosts each clip on the dashboard, saves its private link
-python personalize.py --template        # or without --template to use Claude; Email 1 links the clip only if one exists
-python personalize.py --export review.csv
-python brand.py                         # prints the signature and CAN-SPAM footer to paste into Instantly
+python personalize.py                    # or --template for no API call
+python push_to_dashboard.py              # sends drafts to <dashboard>/review
+python brand.py                          # prints the signature and CAN-SPAM footer
 ```
 
-Review `review.csv`. Approve by setting `approved=1` in `data/outreach.db` (`UPDATE drafts SET approved=1 WHERE lead_id IN (...)`), then:
+### Review and send
 
-```
-python push_to_dashboard.py
-```
+Open `<dashboard>/review`. Each draft shows the verified findings next to the emails. Edit any text, then Approve or
+Reject. **Download Instantly CSV** exports the approved ones (with your edits) and marks them exported so they are
+never imported twice. Import the CSV on the campaign's Leads tab and map `subject`, `email1`, `email2`, `email3` as
+custom variables. Approving a draft also creates the lead on the dashboard so replies and bookings are tracked.
 
-Run `python personalize.py --export-instantly instantly.csv` and import it into an Instantly campaign (3 steps, days 1/4/8, stop on reply). Every CSV column is a merge variable: use `{{email1}}`, `{{email2}}`, `{{email3}}` as the step bodies and `{{subject}}` as the subject. Business details (`BRAND_*`, `SENDER_*`, `OFFER`) come from `.env`.
+The older command-line approval still works (`python personalize.py --approve "1,3"` then `--export-instantly`).
 
 ## Deploy the dashboard (from `dashboard/`)
 
@@ -32,7 +48,7 @@ Run `python personalize.py --export-instantly instantly.csv` and import it into 
 # (R2 bucket "outreach-media" already created)
 npx wrangler secret put DASHBOARD_PASSWORD
 npx wrangler secret put WEBHOOK_SECRET
-npx wrangler secret put API_TOKEN
+npx wrangler secret put API_TOKEN   # also used by the pipeline and the GitHub Action
 npx wrangler secret put TWILIO_SID   # plus TWILIO_TOKEN, TWILIO_FROM, ALERT_PHONE
 npx wrangler deploy
 ```

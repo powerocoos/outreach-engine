@@ -59,3 +59,36 @@ export function safeEqual(a, b) {
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 }
+
+// --- Draft review -----------------------------------------------------------
+export const CSV_COLUMNS = ["email", "first_name", "company_name", "website", "city", "category",
+  "angle", "video_url", "subject", "email1", "email2", "email3"];
+
+export function csvCell(v) {
+  const s = String(v ?? "");
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+export function toCsv(rows) {
+  const lines = [CSV_COLUMNS.join(",")];
+  for (const r of rows) lines.push(CSV_COLUMNS.map((c) => csvCell(r[c])).join(","));
+  return lines.join("\r\n") + "\r\n";
+}
+
+export const wordCount = (t) => String(t || "").trim().split(/\s+/).filter(Boolean).length;
+
+// Problems that block approving a draft (edits included). Empty list = OK.
+export function draftProblems(d) {
+  const p = [];
+  if (!String(d.subject || "").trim()) p.push("subject is empty");
+  else if (String(d.subject).length > 120) p.push("subject is over 120 characters");
+  for (const k of ["email1", "email2", "email3"]) {
+    const t = String(d[k] || "").trim();
+    if (!t) p.push(`${k} is empty`);
+    else if (wordCount(t) > 150) p.push(`${k} is over 150 words`);
+  }
+  return p;
+}
+
+export const REVIEW_STATUSES = ["pending", "approved", "rejected", "exported"];
+export const REVIEW_ACTIONS = ["approve", "reject", "save", "reset"];
