@@ -7,6 +7,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import envload  # noqa: F401  (loads .env)
+
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = Path(os.environ.get("OUTREACH_DB", ROOT / "data" / "outreach.db"))
 USER_AGENT = "RedPandaDigitalAuditBot/1.0 (+https://redpandadigital.example/bot)"

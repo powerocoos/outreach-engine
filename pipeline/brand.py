@@ -4,6 +4,8 @@ Everything the emails and exports say about *us* lives here, so nothing is hard-
 """
 import os
 
+import envload  # noqa: F401  (loads .env)
+
 
 def _env(name, default=""):
     return (os.environ.get(name) or default).strip()
