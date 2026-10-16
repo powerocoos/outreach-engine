@@ -1,4 +1,10 @@
 [
   {"category": "HVAC contractor", "city": "Gainesville, FL", "max": 10},
-  {"category": "HVAC contractor", "city": "Ocala, FL", "max": 10}
+  {"category": "HVAC contractor", "city": "Ocala, FL", "max": 10},
+  {"category": "HVAC contractor", "city": "Newberry, FL", "max": 10},
+  {"category": "HVAC contractor", "city": "Alachua, FL", "max": 10},
+  {"category": "HVAC contractor", "city": "Belleview, FL", "max": 10},
+  {"category": "HVAC contractor", "city": "The Villages, FL", "max": 10},
+  {"category": "HVAC contractor", "city": "Lake City, FL", "max": 10},
+  {"category": "HVAC contractor", "city": "Palatka, FL", "max": 10}
 ]
