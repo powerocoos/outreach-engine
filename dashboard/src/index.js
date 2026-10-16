@@ -302,7 +302,12 @@ async function handleSendToInstantly(request, env) {
       await env.DB.prepare("UPDATE drafts SET status='exported', decided_at=CURRENT_TIMESTAMP WHERE id=?").bind(r.id).run();
       sent++;
     } else {
-      failed.push({ company: r.company, error: `Instantly ${res.status}` });
+      let why = "";
+      try {
+        const b = await res.json();
+        why = String(b.message || b.error || (Array.isArray(b.errors) ? b.errors.join("; ") : "")).slice(0, 160);
+      } catch { /* non-JSON error body */ }
+      failed.push({ company: r.company, email: r.contact_email, error: `Instantly ${res.status}${why ? ": " + why : ""}` });
       if (res.status === 401 || res.status === 402 || res.status === 429) break;
     }
   }
