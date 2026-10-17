@@ -7,6 +7,7 @@ import urllib.robotparser
 from urllib.parse import urljoin, urlparse
 
 from common import USER_AGENT, http_request
+from emailcheck import check_email
 
 CONTACT_PATHS = ["", "/contact", "/contact-us", "/about", "/about-us"]
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
@@ -75,6 +76,9 @@ def find_email(website):
         if status != 200:
             continue
         ranked = rank_emails(extract_emails(body.decode("utf-8", "ignore")), domain)
-        if ranked:
-            return ranked[0], url
+        for candidate in ranked:  # first address Instantly would accept
+            ok, why = check_email(candidate)
+            if ok:
+                return candidate, url
+            print(f"    skip {candidate}: {why}")
     return None, None

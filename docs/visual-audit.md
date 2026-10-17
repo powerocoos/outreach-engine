@@ -19,3 +19,7 @@ Try it on any sites without touching leads: GitHub -> Actions -> **Visual previe
 It prints the findings and publishes test pages (links in the log).
 
 Cost: about 2-3 cents of Claude per lead (two images plus a short answer), no extra services.
+
+## Email checks
+
+`pipeline/emailcheck.py` runs before a draft is written: it rejects malformed or typo addresses (for example `.con`, scraped `u003e` junk) and domains with no MX/A record (Cloudflare DNS-over-HTTPS). A failed lookup lets the address through. The crawler skips bad candidates and takes the next one; a lead whose stored address fails has it cleared so the next lead-finder run searches again.

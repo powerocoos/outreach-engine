@@ -15,6 +15,7 @@ import os
 import re
 
 import brand
+from emailcheck import check_email
 from common import connect, http_request
 
 MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5-5")
@@ -195,6 +196,12 @@ def run(use_template):
            WHERE l.status='audited' AND l.email IS NOT NULL"""
     ).fetchall()
     for lead in rows:
+        ok, why = check_email(lead["email"])
+        if not ok:  # clear it so the next lead-finder run looks for a better address
+            print(f"skip {lead['company']}: bad email {lead['email']} ({why})")
+            conn.execute("UPDATE leads SET email=NULL, email_source=NULL WHERE id=?", (lead["id"],))
+            conn.commit()
+            continue
         findings = json.loads(lead["findings_json"]) + json.loads(lead["visual_json"] or "[]")
         if not findings:
             print(f"skip {lead['company']}: no verified findings")
