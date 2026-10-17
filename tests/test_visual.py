@@ -51,6 +51,7 @@ class VisionValidationTests(unittest.TestCase):
                {"category": "trust", "text": "Only 3 reviews appear."},
                {"category": "trust", "text": "See http://x.com"},
                {"category": "readability", "text": "word " * 40},
+               {"category": "trust", "text": "The photo looks like a stock image."},
                {"category": "trust", "text": ""}, "junk"]
         self.assertEqual(visual.validate_vision(bad), [])
 

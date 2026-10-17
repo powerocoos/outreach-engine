@@ -138,7 +138,9 @@ customer deciding whether to call. Each observation uses one category:
   layout_problem (something looks broken: overlapping, cut off, covered by a banner or popup).
 Rules: describe only what is visible; no numbers, no scores, no guesses about the business or its results; do
 not repeat anything the measured facts already say; hedge opinions ("looks", "appears"); each text at most 30
-words, plain language, no jargon. If nothing is clearly wrong, return an empty list.
+words, plain language, no jargon, ONE issue per observation. Never say whether a photo is stock, fake, AI or
+real, and never judge the business itself, only how the page looks and works. Do not mention reviews or
+social links (measured separately). If nothing is clearly wrong, return an empty list.
 
 Return ONLY JSON: {{"observations": [{{"category": str, "text": str}}]}}"""
 
@@ -153,6 +155,8 @@ def validate_vision(obs):
         if cat not in VISION_CATEGORIES or not text:
             continue
         if len(text.split()) > 35 or re.search(r"\d", text) or "http" in text.lower():
+            continue
+        if re.search(r"\b(stock|fake|AI-generated|generic photo)\b", text, re.I):
             continue
         out.append({"text": text, "service": VISION_CATEGORIES[cat], "source": "vision"})
     return out
