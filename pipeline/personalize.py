@@ -25,7 +25,9 @@ AGENCY = brand.BRAND_NAME
 SYSTEM_PROMPT = f"""You write cold outreach as {brand.SENDER_NAME}, {brand.SENDER_TITLE} of {AGENCY}, a web
 design agency serving {brand.SERVICE_AREA}. Services: {brand.SERVICES}. The offer is a {brand.OFFER}.
 Write in first person ("I"), as one local professional writing to another.
-You will receive a business and a list of VERIFIED FINDINGS about its website.
+You will receive a business and a list of VERIFIED FINDINGS about its website. Findings marked source "page"
+were measured on the live page; "vision" findings are plain observations from screenshots, so word them with
+"looks"/"appears".
 
 Hard rules:
 - Mention ONLY facts present in the findings or the business fields given. Never invent
@@ -51,6 +53,15 @@ Hard rules:
   common cause you would check.
 - Refer to "your website" or "your homepage"; never name a specific inner page.
 - Do not include a signature, address, or unsubscribe text; those are added later.
+- Each finding comes with "fits": the one service of ours it points to (website, design, seo, social). Build
+  the message around the single best finding and, only if natural, the matching service. Emails 1 and 2 pitch
+  that one thing only; never list several services there.
+- If "page_url" is provided, Email 1 must include that exact URL once, introduced as a short private page
+  showing what I saw on a phone and on a desktop. Do not mention a page, screenshot or link otherwise. Never
+  include any other URL.
+- Email 3 ends its break-up with one short sentence offering, as options, at most two of the listed services
+  (not the one already pitched) in plain words, for example "I also help local businesses with Google
+  Business Profile and social posts if that's more useful." Use only services from the list above.
 
 Return ONLY JSON: {{"angle": str, "subject": str, "email1": str, "email2": str, "email3": str}}"""
 
@@ -62,7 +73,7 @@ def word_count(text):
 VIDEO_WORDS = ("video", "recording", "recorded", "screen capture", "screencast")
 
 
-def validate_draft(d, findings, video_url=None):
+def validate_draft(d, findings, video_url=None, page_url=None):
     """Return a list of problems; empty list means the draft passes."""
     problems = []
     for k in ("angle", "subject", "email1", "email2", "email3"):
@@ -80,6 +91,17 @@ def validate_draft(d, findings, video_url=None):
     for k in ("email1", "email2", "email3"):
         if re.search(r"\d+(\.\d+)?\s*seconds?\b", d[k], re.I) and "google" not in d[k].lower():
             problems.append(f"{k} gives a timing without attributing it to Google's test")
+    allowed = {u for u in (video_url, page_url) if u}
+    for k in ("email1", "email2", "email3"):
+        for url in re.findall(r"https?://\S+", d[k]):
+            if url.rstrip(".,)?!") not in allowed:
+                problems.append(f"{k} contains a link that was not provided")
+    if page_url and page_url not in d["email1"]:
+        problems.append("email1 is missing the page link")
+    if not page_url:
+        for k in ("email1", "email2", "email3"):
+            if "screenshot" in d[k].lower():
+                problems.append(f"{k} mentions a screenshot but none exists")
     if video_url:
         if video_url not in d["email1"]:
             problems.append("email1 is missing the video link")
@@ -90,12 +112,29 @@ def validate_draft(d, findings, video_url=None):
     return problems
 
 
-def template_draft(lead, findings, video_url=None):
+def finding_text(f):
+    return f["text"] if isinstance(f, dict) else f
+
+
+def as_payload(findings):
+    """Findings for the writer: speed/HTTPS/mobile checks fit a website fix; visual ones carry their own service."""
+    out = []
+    for f in findings:
+        if isinstance(f, dict):
+            out.append({"finding": f["text"], "fits": f.get("service", "website"), "source": f.get("source", "page")})
+        else:
+            out.append({"finding": f, "fits": "website", "source": "page"})
+    return out
+
+
+def template_draft(lead, findings, video_url=None, page_url=None):
     """Deterministic fallback; also useful as a baseline to compare Claude's output against."""
-    first = findings[0]
+    first = finding_text(findings[0])
     c, city = lead["company"], lead["city"] or "your area"
     clip = (f"\n\nI recorded a short screen capture of how it looks on a phone: {video_url}"
             if video_url else "")
+    if page_url:
+        clip = f"\n\nI put together a short private page showing what I saw on a phone and on a desktop: {page_url}"
     return {
         "angle": first,
         "subject": f"Google's mobile test on {c}'s site",
@@ -113,13 +152,15 @@ def template_draft(lead, findings, video_url=None):
     }
 
 
-def claude_draft(lead, findings, api_key, video_url=None):
+def claude_draft(lead, findings, api_key, video_url=None, page_url=None):
     payload = {
         "business": {k: lead[k] for k in ("company", "category", "city", "rating", "review_count")},
-        "verified_findings": findings,
+        "verified_findings": as_payload(findings),
     }
     if video_url:
         payload["video_url"] = video_url
+    if page_url:
+        payload["page_url"] = page_url
     status, _, _, raw = http_request(
         "https://api.anthropic.com/v1/messages", method="POST", timeout=60,
         headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
@@ -142,24 +183,27 @@ def run(use_template):
         raise SystemExit("Set ANTHROPIC_API_KEY or pass --template.")
     conn = connect()
     rows = conn.execute(
-        """SELECT l.*, a.findings_json, c.video_url FROM leads l
+        """SELECT l.*, a.findings_json, c.video_url, v.findings_json AS visual_json, v.page_url
+           FROM leads l
            JOIN audits a ON a.lead_id=l.id
            LEFT JOIN captures c ON c.lead_id=l.id
+           LEFT JOIN visual_audits v ON v.lead_id=l.id
            WHERE l.status='audited' AND l.email IS NOT NULL"""
     ).fetchall()
     for lead in rows:
-        findings = json.loads(lead["findings_json"])
+        findings = json.loads(lead["findings_json"]) + json.loads(lead["visual_json"] or "[]")
         if not findings:
             print(f"skip {lead['company']}: no verified findings")
             continue
-        video_url = lead["video_url"]
+        page_url = lead["page_url"]
+        video_url = None if page_url else lead["video_url"]  # one link in email 1
         try:
-            draft = (template_draft(lead, findings, video_url) if use_template
-                     else claude_draft(lead, findings, api_key, video_url))
+            draft = (template_draft(lead, findings, video_url, page_url) if use_template
+                     else claude_draft(lead, findings, api_key, video_url, page_url))
         except (RuntimeError, ValueError) as e:
             print(f"error {lead['company']}: {e}")
             continue
-        problems = validate_draft(draft, findings, video_url)
+        problems = validate_draft(draft, findings, video_url, page_url)
         if problems:
             print(f"reject {lead['company']}: {problems}")
             continue

@@ -37,7 +37,8 @@ def main():
             if run("lead_finder.py", "--category", t["category"], "--city", t["city"],
                    "--max", str(t.get("max", 20))) != 0:
                 failed.append(f"lead_finder {t['category']} {t['city']}")
-        for step in (("audit.py", "--limit", "60"), ("personalize.py",), ("push_to_dashboard.py",)):
+        for step in (("audit.py", "--limit", "60"), ("visual.py", "--limit", "40"), ("personalize.py",),
+                     ("push_to_dashboard.py",)):
             if run(*step) != 0:
                 failed.append(step[0])
     finally:

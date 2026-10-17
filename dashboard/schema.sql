@@ -94,3 +94,13 @@ CREATE TABLE IF NOT EXISTS social_posts (
   posted_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_social_status ON social_posts(status);
+
+-- Private screenshot pages linked from outreach emails (GET /a/<token>)
+CREATE TABLE IF NOT EXISTS audit_pages (
+  token TEXT PRIMARY KEY,
+  contact_email TEXT,
+  company TEXT NOT NULL,
+  website TEXT,
+  findings TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

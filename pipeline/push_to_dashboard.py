@@ -16,14 +16,20 @@ def collect(conn):
     rows = conn.execute(
         """SELECT l.id lead_id, l.company, l.email AS contact_email, l.website, l.city, l.category,
                   l.rating, l.review_count, a.mobile_score, a.findings_json,
+                  v.findings_json AS visual_json, v.page_url,
                   d.angle, d.subject, d.email1, d.email2, d.email3
            FROM leads l JOIN drafts d ON d.lead_id=l.id JOIN audits a ON a.lead_id=l.id
+           LEFT JOIN visual_audits v ON v.lead_id=l.id
            WHERE l.status='drafted' AND l.email IS NOT NULL"""
     ).fetchall()
     out = []
     for r in rows:
         d = dict(r)
         d["findings"] = json.loads(d.pop("findings_json") or "[]")
+        d["findings"] += [f["text"] for f in json.loads(d.pop("visual_json") or "[]")]
+        page_url = d.pop("page_url", None)
+        if page_url:
+            d["findings"].append(f"Private page with screenshots: {page_url}")
         out.append(d)
     return out
 

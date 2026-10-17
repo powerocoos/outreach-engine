@@ -51,6 +51,15 @@ CREATE TABLE IF NOT EXISTS captures (
     video_url TEXT,             -- set after upload to the dashboard Worker
     captured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS visual_audits (
+    lead_id INTEGER PRIMARY KEY REFERENCES leads(id),
+    findings_json TEXT NOT NULL,   -- list of {"text", "service", "source"}; the only visual facts the writer may use
+    mobile_path TEXT,
+    desktop_path TEXT,
+    token TEXT,                    -- unguessable id in the public page link
+    page_url TEXT,                 -- set after upload to the dashboard Worker
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS drafts (
     lead_id INTEGER PRIMARY KEY REFERENCES leads(id),
     angle TEXT,

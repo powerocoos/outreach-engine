@@ -1,0 +1,37 @@
+name: Visual preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      sites:
+        description: "Comma-separated site URLs to screenshot and critique (test only; touches no leads)"
+        required: true
+      city:
+        description: "City used for the local-search check"
+        required: false
+        default: "Ocala, FL"
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser for screenshots
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+      - name: Screenshot, critique and publish test pages
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          SITES: ${{ github.event.inputs.sites }}
+          CITY: ${{ github.event.inputs.city }}
+        run: python pipeline/visual.py --preview "$SITES" --city "$CITY"
