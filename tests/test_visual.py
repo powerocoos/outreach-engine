@@ -113,5 +113,43 @@ class ProbeTests(unittest.TestCase):
         self.assertFalse(facts["overflow_x"])
 
 
+class RetryTests(unittest.TestCase):
+    def test_failed_draft_is_retried_once_with_the_problems(self):
+        import os
+        import tempfile
+        import common
+        d = tempfile.mkdtemp()
+        old_db, old_key = common.DB_PATH, os.environ.get("ANTHROPIC_API_KEY")
+        common.DB_PATH = Path(d) / "t.db"
+        os.environ["ANTHROPIC_API_KEY"] = "x"
+        try:
+            conn = common.connect()
+            conn.execute("INSERT INTO leads (place_id, company, city, website, email, status) VALUES ('p','Acme','Ocala, FL','a.com','o@a.com','audited')")
+            conn.execute("INSERT INTO audits (lead_id, findings_json) VALUES (1, ?)", (json.dumps(["Site is not secure."]),))
+            conn.commit()
+            conn.close()
+            seen = []
+            good = {"angle": "a", "subject": "s", "email1": "Hi?", "email2": "Hi?", "email3": "Bye. Close the file?"}
+
+            def fake(lead, findings, api_key, video_url=None, page_url=None, problems=None):
+                seen.append(problems)
+                return dict(good, email3="Bye.") if problems is None else good
+
+            orig, personalize.claude_draft = personalize.claude_draft, fake
+            try:
+                personalize.run(False)
+            finally:
+                personalize.claude_draft = orig
+            self.assertIsNone(seen[0])
+            self.assertTrue(seen[1] and "email3 has no question CTA" in seen[1])
+            self.assertEqual(common.connect().execute("SELECT COUNT(*) FROM drafts").fetchone()[0], 1)
+        finally:
+            common.DB_PATH = old_db
+            if old_key is None:
+                os.environ.pop("ANTHROPIC_API_KEY", None)
+            else:
+                os.environ["ANTHROPIC_API_KEY"] = old_key
+
+
 if __name__ == "__main__":
     unittest.main()

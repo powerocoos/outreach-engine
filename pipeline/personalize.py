@@ -59,9 +59,11 @@ Hard rules:
 - If "page_url" is provided, Email 1 must include that exact URL once, introduced as a short private page
   showing what I saw on a phone and on a desktop. Do not mention a page, screenshot or link otherwise. Never
   include any other URL.
-- Email 3 ends its break-up with one short sentence offering, as options, at most two of the listed services
+- Email 3 is the break-up, then ONE short sentence offering, as options, at most two of the listed services
   (not the one already pitched) in plain words, for example "I also help local businesses with Google
-  Business Profile and social posts if that's more useful." Use only services from the list above.
+  Business Profile and social posts if that's more useful.", and it must still END with its closing question
+  (the question comes last, after the services sentence). Use only services from the list above.
+- If "fix_these_problems" is provided, your previous draft failed these checks; return a corrected draft.
 
 Return ONLY JSON: {{"angle": str, "subject": str, "email1": str, "email2": str, "email3": str}}"""
 
@@ -152,7 +154,7 @@ def template_draft(lead, findings, video_url=None, page_url=None):
     }
 
 
-def claude_draft(lead, findings, api_key, video_url=None, page_url=None):
+def claude_draft(lead, findings, api_key, video_url=None, page_url=None, problems=None):
     payload = {
         "business": {k: lead[k] for k in ("company", "category", "city", "rating", "review_count")},
         "verified_findings": as_payload(findings),
@@ -161,6 +163,8 @@ def claude_draft(lead, findings, api_key, video_url=None, page_url=None):
         payload["video_url"] = video_url
     if page_url:
         payload["page_url"] = page_url
+    if problems:
+        payload["fix_these_problems"] = problems
     status, _, _, raw = http_request(
         "https://api.anthropic.com/v1/messages", method="POST", timeout=60,
         headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
@@ -197,13 +201,21 @@ def run(use_template):
             continue
         page_url = lead["page_url"]
         video_url = None if page_url else lead["video_url"]  # one link in email 1
-        try:
-            draft = (template_draft(lead, findings, video_url, page_url) if use_template
-                     else claude_draft(lead, findings, api_key, video_url, page_url))
-        except (RuntimeError, ValueError) as e:
-            print(f"error {lead['company']}: {e}")
+        problems = None
+        draft = None
+        for attempt in (1, 2):  # one retry, telling Claude what failed
+            try:
+                draft = (template_draft(lead, findings, video_url, page_url) if use_template
+                         else claude_draft(lead, findings, api_key, video_url, page_url, problems))
+            except (RuntimeError, ValueError) as e:
+                print(f"error {lead['company']}: {e}")
+                draft = None
+                break
+            problems = validate_draft(draft, findings, video_url, page_url)
+            if not problems or use_template:
+                break
+        if draft is None:
             continue
-        problems = validate_draft(draft, findings, video_url, page_url)
         if problems:
             print(f"reject {lead['company']}: {problems}")
             continue
