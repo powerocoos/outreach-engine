@@ -2,7 +2,7 @@ name: Outreach run
 
 on:
   schedule:
-    - cron: "0 10 * * 1-5"   # weekdays 10:00 UTC (6:00 AM Eastern)
+    - cron: "17 9 * * 1-5"   # weekdays 9:17 UTC (5:17 AM Eastern); an off-peak minute starts closer to on time
   workflow_dispatch:
     inputs:
       category:
@@ -22,21 +22,37 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      - name: Skip a scheduled run if one already started today (the dashboard may have started it)
+        id: guard
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          today=$(date -u +%Y-%m-%d)
+          n=$(gh api "repos/${{ github.repository }}/actions/workflows/outreach.yml/runs?per_page=10&created=%3E%3D${today}" \
+              --jq "[.workflow_runs[] | select(.id != ${{ github.run_id }})] | length")
+          echo "other runs today: $n"
+          if [ "$n" != "0" ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
+        if: steps.guard.outputs.skip != 'true'
       - uses: actions/setup-python@v5
+        if: steps.guard.outputs.skip != 'true'
         with:
           python-version: "3.12"
       - name: Install browser for screenshots
+        if: steps.guard.outputs.skip != 'true'
         run: |
           pip install playwright
           playwright install --with-deps chromium
       - name: Find leads, audit sites, draft emails, send drafts to the dashboard
+        if: steps.guard.outputs.skip != 'true'
         env:
           GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           PAGESPEED_API_KEY: ${{ secrets.GOOGLE_API_KEY }}

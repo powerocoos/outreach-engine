@@ -1,3 +1,4 @@
+import { kickOutreach } from "./kick.js";
 import { AUDIT_DDL, handleAuditImagePut, handleAuditPut, handleAuditImageGet, handleAuditView } from "./audit_page.js";
 import { normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
 import { REVIEW_PAGE, NAV_CSS, MOBILE_CSS, navHtml } from "./review_page.js";
@@ -427,6 +428,7 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(syncInstantly(env, ctx).catch(() => {}));
     ctx.waitUntil(ensureSchema(env).then(() => publishDue(env)).catch(() => {}));
+    ctx.waitUntil(kickOutreach(env).catch(() => {}));
   },
   async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url);

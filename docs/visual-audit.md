@@ -23,3 +23,9 @@ Cost: about 2-3 cents of Claude per lead (two images plus a short answer), no ex
 ## Email checks
 
 `pipeline/emailcheck.py` runs before a draft is written: it rejects malformed or typo addresses (for example `.con`, scraped `u003e` junk) and domains with no MX/A record (Cloudflare DNS-over-HTTPS). A failed lookup lets the address through. The crawler skips bad candidates and takes the next one; a lead whose stored address fails has it cleared so the next lead-finder run searches again.
+
+## Keeping the weekday run on time
+
+GitHub's schedule is best-effort (often hours late, sometimes skipped). Two safeguards:
+- The workflow cron is `17 9 * * 1-5` (off-peak minute) and a scheduled run exits early if another run already started today.
+- The dashboard Worker checks every 30 minutes and, on weekdays between 5:20 and 2:00 PM Eastern, starts the workflow itself if none has started today. Needs the Worker secret `GITHUB_DISPATCH_TOKEN` (fine-grained GitHub token for this repo, permission Actions: read and write). Without it this is simply off.
