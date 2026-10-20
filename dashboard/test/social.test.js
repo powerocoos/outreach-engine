@@ -258,3 +258,14 @@ test("cron does nothing when Meta is not connected, and the list shows the next 
   const list = await (await call(e, "/api/social?status=approved", { headers: { authorization: basic } })).json();
   assert.match(list.next_slot_label, /9:00 AM ET/);
 });
+
+test("tips and site checks are stored with their kind, and the known list reports the waiting stream posts", async () => {
+  const e = env();
+  const tip = { ...POST, post_url: "https://www.ocooswebconsulting.com/#tip-tap-to-call", title: "Tap to call", kind: "tip" };
+  const r = await ingest(e, [POST, tip, { ...POST, post_url: "https://www.ocooswebconsulting.com/#check-x-2026-10", kind: "weird" }]);
+  assert.equal((await r.json()).added, 3);
+  const rows = e.DB.prepare ? (await e.DB.prepare("SELECT post_url, kind FROM social_posts ORDER BY id").all()).results : [];
+  assert.deepEqual(rows.map((x) => x.kind), ["blog", "tip", "blog"]);  // unknown kinds fall back to blog
+  const known = await (await call(e, "/api/social/known", { headers: { authorization: "Bearer tok" } })).json();
+  assert.equal(known.queued_stream, 1);
+});

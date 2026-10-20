@@ -59,7 +59,7 @@ def split_title(title):
     return " ".join(words[:cut]), " ".join(words[cut:])
 
 
-def render_card(title, logo_bytes=None):
+def render_card(title, logo_bytes=None, kicker="NEW ON THE BLOG"):
     img = _gradient()
     d = ImageDraw.Draw(img)
     max_w = SIZE - 2 * MARGIN
@@ -86,7 +86,7 @@ def render_card(title, logo_bytes=None):
         except Exception:
             pass
     label_y = 250
-    d.text((MARGIN, label_y), "NEW ON THE BLOG", font=_font("Poppins-Medium.ttf", 34), fill=WHITE)
+    d.text((MARGIN, label_y), kicker, font=_font("Poppins-Medium.ttf", 34), fill=WHITE)
     d.rectangle([MARGIN, label_y + 56, MARGIN + 74, label_y + 62], fill=GOLD)
 
     y = label_y + 96

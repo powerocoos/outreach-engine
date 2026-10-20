@@ -15,7 +15,7 @@ export const SOCIAL_DDL = [
     title TEXT NOT NULL, summary TEXT, image_url TEXT, categories TEXT, pub_date TEXT, link TEXT,
     fb_text TEXT NOT NULL, ig_text TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
     fb_post_id TEXT, ig_post_id TEXT, error TEXT, edited INTEGER NOT NULL DEFAULT 0,
-    scheduled_at TEXT, attempts INTEGER NOT NULL DEFAULT 0,
+    scheduled_at TEXT, attempts INTEGER NOT NULL DEFAULT 0, kind TEXT NOT NULL DEFAULT 'blog',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, decided_at TEXT, posted_at TEXT)`,
   "CREATE INDEX IF NOT EXISTS idx_social_status ON social_posts(status)",
 ];
@@ -23,7 +23,9 @@ export const SOCIAL_DDL = [
 export const SOCIAL_MIGRATIONS = [
   "ALTER TABLE social_posts ADD COLUMN scheduled_at TEXT",
   "ALTER TABLE social_posts ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE social_posts ADD COLUMN kind TEXT NOT NULL DEFAULT 'blog'",
 ];
+export const SOCIAL_KINDS = ["blog", "tip", "teardown"];
 
 // ---- Scheduling (Eastern Time) ---------------------------------------------------
 const TZ = "America/New_York";
@@ -163,11 +165,12 @@ export async function handleSocialIngest(request, env) {
     const bad = !isHttps(p.post_url) || !p.title || socialProblems(p).length || (p.image_url && !isHttps(p.image_url));
     if (bad) { skipped++; continue; }
     const r = await env.DB.prepare(
-      `INSERT OR IGNORE INTO social_posts (post_url, title, summary, image_url, categories, pub_date, link, fb_text, ig_text)
-       VALUES (?,?,?,?,?,?,?,?,?)`
+      `INSERT OR IGNORE INTO social_posts (post_url, title, summary, image_url, categories, pub_date, link, fb_text, ig_text, kind)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`
     ).bind(p.post_url, String(p.title).slice(0, 300), p.summary ? String(p.summary).slice(0, 1000) : null,
            p.image_url || null, JSON.stringify(Array.isArray(p.categories) ? p.categories : []),
-           p.pub_date || null, isHttps(p.link) ? p.link : p.post_url, p.fb_text, p.ig_text).run();
+           p.pub_date || null, isHttps(p.link) ? p.link : p.post_url, p.fb_text, p.ig_text,
+           SOCIAL_KINDS.includes(p.kind) ? p.kind : "blog").run();
     if (r.meta.changes) added++; else skipped++;
   }
   return json({ ok: true, added, skipped });
@@ -177,7 +180,10 @@ export async function handleSocialIngest(request, env) {
 export async function handleSocialKnown(request, env) {
   if (!bearerOk(request, env)) return json({ error: "unauthorized" }, 401);
   const rows = (await env.DB.prepare("SELECT post_url FROM social_posts").all()).results;
-  return json({ urls: rows.map((r) => r.post_url) });
+  // How many tip/teardown posts are still waiting (not posted or rejected), so the drafting job keeps the queue small.
+  const q = await env.DB.prepare(
+    "SELECT COUNT(*) n FROM social_posts WHERE kind != 'blog' AND status IN ('pending','approved')").first();
+  return json({ urls: rows.map((r) => r.post_url), queued_stream: q ? q.n : 0 });
 }
 
 export async function handleSocialList(request, env) {
@@ -309,7 +315,7 @@ function renderBar(){var bar=document.getElementById("bar");bar.textContent="";
 function card(p){
   var c=el("div",{cls:"card"});c.appendChild(el("h2",{text:p.title}));
   var m=el("div",{cls:"meta"});m.appendChild(document.createTextNode((p.categories||[]).join(", ")+(p.pub_date?" \\u00b7 "+p.pub_date.slice(0,16)+" \\u00b7 ":" \\u00b7 ")));
-  m.appendChild(el("a",{href:p.post_url,target:"_blank",rel:"noopener noreferrer",text:"view blog post"}));c.appendChild(m);
+  m.appendChild(el("a",{href:p.post_url,target:"_blank",rel:"noopener noreferrer",text:(p.kind==="tip"?"tip (links to your website)":p.kind==="teardown"?"site check (links to your website)":"view blog post")}));c.appendChild(m);
   if(p.image_url){c.appendChild(el("img",{cls:"thumb",src:p.image_url,alt:""}))}
   var fb=el("textarea",{}),ig=el("textarea",{});fb.value=p.fb_text;ig.value=p.ig_text;
   field("Facebook",fb,3000).concat(field("Instagram",ig,2200)).forEach(function(n){c.appendChild(n)});

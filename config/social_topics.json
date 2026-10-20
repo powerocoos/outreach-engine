@@ -1,0 +1,202 @@
+[
+  {
+    "id": "tap-to-call",
+    "title": "Tap to call: make it easy on a phone",
+    "facts": [
+      "Many people look up local businesses on their phones.",
+      "A phone number that is plain text forces the visitor to copy and paste it.",
+      "A tap-to-call button near the top of every page lets a customer reach you in one tap.",
+      "Check your own site on your phone: can you find the call button without scrolling?"
+    ]
+  },
+  {
+    "id": "google-profile",
+    "title": "Your Google Business Profile: keep it complete",
+    "facts": [
+      "Google shows your profile in local search and on maps, often before your website.",
+      "Correct hours, phone number, service area and business categories help customers trust it.",
+      "Real photos of your work and your team make the listing more useful than a bare name and address.",
+      "If your hours or services changed, update the profile the same day."
+    ]
+  },
+  {
+    "id": "review-replies",
+    "title": "Answer your Google reviews",
+    "facts": [
+      "Replying to reviews shows future customers that a real person runs the business.",
+      "Thank people for good reviews in a sentence or two, and mention the actual job when it fits.",
+      "For a poor review, reply calmly, offer to fix it, and take the details offline.",
+      "Never argue in public; readers judge the reply as much as the review."
+    ]
+  },
+  {
+    "id": "ask-for-reviews",
+    "title": "Ask happy customers for a review",
+    "facts": [
+      "Most happy customers never think to leave a review unless asked.",
+      "Ask right after the job is done and the customer is pleased.",
+      "Send the direct review link by text or email so it takes one tap.",
+      "One short, polite request is enough; do not offer payment or discounts for reviews."
+    ]
+  },
+  {
+    "id": "city-in-title",
+    "title": "Put your city where searchers look",
+    "facts": [
+      "People search with a city name, such as heating repair in Ocala.",
+      "Your homepage title and main heading should say what you do and where you do it.",
+      "Vague titles like Home or Welcome waste the most important line Google reads.",
+      "List the towns you serve on a page of their own instead of one long list in the footer."
+    ]
+  },
+  {
+    "id": "first-screen",
+    "title": "Say what you do in the first five seconds",
+    "facts": [
+      "A visitor should know what you do, where, and how to reach you without scrolling.",
+      "A clear headline, a phone number and a button for a quote or booking cover that.",
+      "Slideshows and long welcome speeches push those basics out of view.",
+      "Ask a friend to look at your homepage for five seconds, then ask what you do."
+    ]
+  },
+  {
+    "id": "site-speed",
+    "title": "A slow site loses people before they see it",
+    "facts": [
+      "Visitors on a phone often leave if a page takes too long to show.",
+      "Very large images are one of the most common reasons local sites load slowly.",
+      "Resizing and compressing photos before uploading them is usually a quick fix.",
+      "Free tools such as Google PageSpeed Insights show where a page is slow."
+    ]
+  },
+  {
+    "id": "https",
+    "title": "The little padlock matters",
+    "facts": [
+      "A site served over HTTPS shows a padlock; without it, browsers can show a Not secure warning.",
+      "A warning on a contact page can scare away a customer who was about to call or fill in a form.",
+      "Most hosting companies offer HTTPS at no extra cost.",
+      "If you see a warning on your own site, ask your web provider to fix it."
+    ]
+  },
+  {
+    "id": "mobile-check",
+    "title": "Look at your own site on your phone",
+    "facts": [
+      "Open your site on a phone, not just a computer.",
+      "Check that text is readable without zooming and nothing runs off the side of the screen.",
+      "Check that buttons are easy to tap with a thumb.",
+      "Try the contact form yourself and make sure the message actually reaches you."
+    ]
+  },
+  {
+    "id": "old-footer",
+    "title": "An old copyright year says nobody is home",
+    "facts": [
+      "A footer that still says 2018 can make a business look closed or neglected.",
+      "Updating the year, or using a year that updates itself, takes minutes.",
+      "Fresh photos, current hours and a recent blog post send the same signal.",
+      "Customers often decide in seconds whether a business is still active."
+    ]
+  },
+  {
+    "id": "real-photos",
+    "title": "Real photos beat generic ones",
+    "facts": [
+      "Photos of your real trucks, team and finished jobs help customers picture working with you.",
+      "Generic images could be on any company's site, so they add little trust.",
+      "Take photos on a modern phone in good daylight; you do not need a studio.",
+      "Add a short caption saying what the job was and where."
+    ]
+  },
+  {
+    "id": "contact-form",
+    "title": "Make it easy to get in touch",
+    "facts": [
+      "Every page should offer a way to contact you: a phone number, a button or a short form.",
+      "Keep forms short; name, phone and a few words about the job is often enough.",
+      "Reply quickly; a fast answer often wins the job over a slightly cheaper competitor.",
+      "Test your form every few months to make sure messages still arrive."
+    ]
+  },
+  {
+    "id": "service-pages",
+    "title": "Give each service its own page",
+    "facts": [
+      "One page that lists every service tells Google and visitors very little about each one.",
+      "A separate page for each main service lets you explain it, show examples and answer common questions.",
+      "Include the towns you serve on those pages in natural sentences.",
+      "Link between related service pages so visitors can keep reading."
+    ]
+  },
+  {
+    "id": "faq",
+    "title": "Answer common questions on your site",
+    "facts": [
+      "Customers ask the same questions again and again: pricing, timing, what is included.",
+      "Writing the answers on your site saves phone time and builds trust.",
+      "Use the exact words customers use when they call you.",
+      "Short, honest answers work better than long sales copy."
+    ]
+  },
+  {
+    "id": "social-links",
+    "title": "Link your website and social pages together",
+    "facts": [
+      "Customers often check a business's Facebook page before calling.",
+      "Link your social pages from your website, and link your website from your profiles.",
+      "Keep contact details identical everywhere: the same name, address and phone number.",
+      "An active page with recent posts is better than an abandoned one."
+    ]
+  },
+  {
+    "id": "local-seo-basics",
+    "title": "Local search starts with consistency",
+    "facts": [
+      "Your business name, address and phone number should match across your website, Google and directories.",
+      "Mismatched details can confuse both customers and search engines.",
+      "Claim your listing on the main directories and check them once a year.",
+      "Small corrections add up over time."
+    ]
+  },
+  {
+    "id": "blog-for-local",
+    "title": "Why a small business blog can help",
+    "facts": [
+      "A blog lets you answer real customer questions in your own words.",
+      "Each helpful post is another page that can show up when someone searches for that problem.",
+      "One useful post a month is better than ten posts and then silence.",
+      "Write about jobs you actually did and questions customers actually asked."
+    ]
+  },
+  {
+    "id": "website-basics",
+    "title": "A website is your hardest-working employee",
+    "facts": [
+      "It answers the phone at night and on weekends, and it never takes a day off.",
+      "It only works if visitors can quickly see what you do and how to reach you.",
+      "Treat it like a truck or a tool: keep it maintained and updated.",
+      "Review it twice a year: photos, hours, services and contact details."
+    ]
+  },
+  {
+    "id": "accessibility",
+    "title": "Make your site easy to read",
+    "facts": [
+      "Low contrast text and tiny fonts are hard for many people, especially on a bright phone screen.",
+      "Use dark text on a light background, or the reverse, with strong contrast.",
+      "Keep body text at a comfortable size and leave space between lines.",
+      "Write descriptive alt text for important images."
+    ]
+  },
+  {
+    "id": "booking-link",
+    "title": "Make booking a one-step action",
+    "facts": [
+      "Every extra step between I need a quote and I asked for one loses some customers.",
+      "A booking or quote button that stays visible on a phone helps.",
+      "Say what happens next, such as we will call you within one business day.",
+      "Only promise a response time you can keep."
+    ]
+  }
+]

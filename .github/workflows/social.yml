@@ -29,3 +29,13 @@ jobs:
           DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
           API_TOKEN: ${{ secrets.API_TOKEN }}
         run: python pipeline/social.py
+      - name: Draft tips and site-check posts (a few per week, only while the review queue is short)
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+        working-directory: pipeline
+        run: |
+          python state.py pull
+          python social_stream.py ${{ github.event_name == 'workflow_dispatch' && '--force' || '' }}

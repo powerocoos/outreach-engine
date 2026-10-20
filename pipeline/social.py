@@ -202,12 +202,12 @@ def ig_image_ok(url):
     return bool(url) and url.startswith("https://") and re.search(r"\.jpe?g(\?|$)", url, re.I) is not None
 
 
-def ensure_image(post, base, token, uploader=None):
+def ensure_image(post, base, token, uploader=None, kicker="NEW ON THE BLOG", force_card=False):
     """Return the image URL to store: the blog's own JPEG if Instagram can use it, else a branded card."""
-    if ig_image_ok(post["image"]):
+    if not force_card and ig_image_ok(post["image"]):
         return post["image"]
     try:
-        card = social_image.render_card(post["title"], fetch_logo())
+        card = social_image.render_card(post["title"], fetch_logo(), kicker)
         key = social_image.card_token(post["link"])
         status, _, _, raw = (uploader or http_request)(
             f"{base}/api/social-image/{key}", method="PUT", body=card, timeout=60,

@@ -1,8 +1,11 @@
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
+os.environ.setdefault("OUTREACH_DB", os.path.join(tempfile.mkdtemp(), "t.db"))  # never touch the real data dir
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))
 
 import emailcheck

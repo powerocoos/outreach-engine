@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS drafts (
   edited INTEGER NOT NULL DEFAULT 0,
   scheduled_at TEXT,             -- UTC ISO time to auto-publish (booked as 9:00 AM Eastern on approval)
   attempts INTEGER NOT NULL DEFAULT 0,
+  kind TEXT NOT NULL DEFAULT 'blog',   -- blog | tip | teardown
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   decided_at TEXT
 );

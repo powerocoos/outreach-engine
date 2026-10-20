@@ -55,3 +55,19 @@ Approving a post books the next free **9:00 AM Eastern** slot (one post per day)
 to every connected channel that can take the post. Each channel posts at most once; a failing post is retried up to
 3 times, then stops and shows its error on the card. "Publish" buttons still post immediately. Times are entered and
 shown in Eastern Time; stored as UTC.
+
+## Tips and site-check posts (second stream)
+
+`pipeline/social_stream.py` drafts Facebook + Instagram posts that are not blog posts, in the same `/social` review queue
+(the card shows "tip" or "site check" instead of "view blog post"). It runs in the `Social drafts` workflow after the blog step.
+- **Tips** come from `config/social_topics.json` (20 topics, each with the facts Claude may use; add your own topics there).
+- **Site checks** are anonymous statistics computed from the sites the outreach engine has audited, for example
+  "14 of 38 local HVAC websites had no visible call button on the first phone screen". Only used once at least 15 sites back
+  the number (and the problem appears on 3+ sites and 15%+ of them). No business is ever named. Each stat is used at most once a month.
+- Pace: only Monday, Wednesday and Friday, one new draft per run, and only while fewer than 2 tip/site-check posts are waiting
+  (pending or approved, not yet posted). Environment overrides: `SOCIAL_STREAM_DAYS`, `SOCIAL_STREAM_QUEUE`. A manual run of the
+  workflow ignores the weekday rule.
+- Every draft passes the same checks as blog posts (word counts, no URLs/phones, numbers must come from the item) plus emoji limits;
+  site checks must mention the free audit. If Claude cannot produce a passing draft in two tries, nothing is queued.
+- Images are always the branded card ("WEBSITE TIP" / "LOCAL SITE CHECK"). Links go to the website with
+  `utm_campaign=tips` or `site-checks`.
