@@ -11,6 +11,7 @@ import argparse
 from common import connect, http_request, require_env
 from crawler import find_email
 
+RECHECK_DAYS = 60   # a site with no email is searched again only after this many days
 PLACES_URL = "https://places.googleapis.com/v1/places:searchText"
 FIELD_MASK = ",".join([
     "places.id", "places.displayName", "places.formattedAddress",
@@ -87,11 +88,14 @@ def main():
 
     if not args.skip_emails:
         rows = conn.execute(
-            "SELECT id, company, website FROM leads WHERE email IS NULL AND website IS NOT NULL"
+            "SELECT id, company, website FROM leads WHERE email IS NULL AND website IS NOT NULL "
+            "AND (email_checked_at IS NULL OR email_checked_at < datetime('now', ?))", (f"-{RECHECK_DAYS} days",)
         ).fetchall()
+        print(f"Looking for an email on {len(rows)} sites (sites checked in the last {RECHECK_DAYS} days are skipped).")
         for r in rows:
             email, source = find_email(r["website"])
-            conn.execute("UPDATE leads SET email=?, email_source=? WHERE id=?", (email, source, r["id"]))
+            conn.execute("UPDATE leads SET email=?, email_source=?, email_checked_at=CURRENT_TIMESTAMP WHERE id=?",
+                         (email, source, r["id"]))
             conn.commit()
             print(f"  {r['company']}: {email or 'no email found'}")
 

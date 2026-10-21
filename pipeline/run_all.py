@@ -23,6 +23,18 @@ def load_targets(env=os.environ, path=TARGETS):
     return json.loads(Path(path).read_text())
 
 
+def todays_targets(targets, today=None, per_run=None):
+    """A rotating slice of the target list, so a long list is worked through over several weekdays
+    instead of making one run too long. Overrides (one-off category/city) are never sliced."""
+    import datetime
+    per_run = per_run or int(os.environ.get("TARGETS_PER_RUN") or 5)
+    if len(targets) <= per_run:
+        return targets
+    today = today or datetime.date.today()
+    start = (today.toordinal() * per_run) % len(targets)
+    return [targets[(start + i) % len(targets)] for i in range(per_run)]
+
+
 def run(*args):
     print("$ python", *args, flush=True)
     return subprocess.run([sys.executable, *args], cwd=HERE).returncode
@@ -33,7 +45,10 @@ def main():
         raise SystemExit("Could not load saved state; stopping so nothing is duplicated.")
     failed = []
     try:
-        for t in load_targets():
+        env_override = bool((os.environ.get("TARGET_CATEGORY") or "").strip() and (os.environ.get("TARGET_CITY") or "").strip())
+        chosen = load_targets() if env_override else todays_targets(load_targets())
+        print("Targets today:", "; ".join(f"{t['category']} / {t['city']}" for t in chosen), flush=True)
+        for t in chosen:
             if run("lead_finder.py", "--category", t["category"], "--city", t["city"],
                    "--max", str(t.get("max", 20))) != 0:
                 failed.append(f"lead_finder {t['category']} {t['city']}")

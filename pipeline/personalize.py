@@ -143,7 +143,7 @@ def template_draft(lead, findings, video_url=None, page_url=None):
         "subject": f"Google's mobile test on {c}'s site",
         "email1": (f"Hi there,\n\nI'm {brand.SENDER_NAME} with {brand.BRAND_NAME}. I looked at {c}'s "
                    f"website while checking local options in {city}. "
-                   f"{first}\n\nMost people searching for a contractor are on a phone, and they "
+                   f"{first}\n\nMost people searching for a local business are on a phone, and they "
                    f"usually tap the next result instead of working around a problem like that."
                    f"{clip}\n\nWorth a quick look?"),
         "email2": (f"Following up on {c}. The fix for this is usually small and quick: the issue I "

@@ -90,7 +90,7 @@ def main():
     api_key = os.environ.get("PAGESPEED_API_KEY")
     conn = connect()
     rows = conn.execute(
-        "SELECT * FROM leads WHERE status='new' AND website IS NOT NULL LIMIT ?", (args.limit,)
+        "SELECT * FROM leads WHERE status='new' AND website IS NOT NULL AND email IS NOT NULL LIMIT ?", (args.limit,)
     ).fetchall()
     for lead in rows:
         r = audit_lead(lead, api_key, not args.no_pagespeed)

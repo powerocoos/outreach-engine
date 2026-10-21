@@ -1,10 +1,457 @@
 [
-  {"category": "HVAC contractor", "city": "Gainesville, FL", "max": 10},
-  {"category": "HVAC contractor", "city": "Ocala, FL", "max": 10},
-  {"category": "HVAC contractor", "city": "Newberry, FL", "max": 10},
-  {"category": "HVAC contractor", "city": "Alachua, FL", "max": 10},
-  {"category": "HVAC contractor", "city": "Belleview, FL", "max": 10},
-  {"category": "HVAC contractor", "city": "The Villages, FL", "max": 10},
-  {"category": "HVAC contractor", "city": "Lake City, FL", "max": 10},
-  {"category": "HVAC contractor", "city": "Palatka, FL", "max": 10}
+ {
+  "category": "HVAC contractor",
+  "city": "Gainesville, FL",
+  "max": 20
+ },
+ {
+  "category": "HVAC contractor",
+  "city": "Ocala, FL",
+  "max": 20
+ },
+ {
+  "category": "HVAC contractor",
+  "city": "Newberry, FL",
+  "max": 20
+ },
+ {
+  "category": "HVAC contractor",
+  "city": "Alachua, FL",
+  "max": 20
+ },
+ {
+  "category": "HVAC contractor",
+  "city": "Belleview, FL",
+  "max": 20
+ },
+ {
+  "category": "HVAC contractor",
+  "city": "The Villages, FL",
+  "max": 20
+ },
+ {
+  "category": "HVAC contractor",
+  "city": "Lake City, FL",
+  "max": 20
+ },
+ {
+  "category": "HVAC contractor",
+  "city": "Palatka, FL",
+  "max": 20
+ },
+ {
+  "category": "HVAC contractor",
+  "city": "Williston, FL",
+  "max": 20
+ },
+ {
+  "category": "HVAC contractor",
+  "city": "Dunnellon, FL",
+  "max": 20
+ },
+ {
+  "category": "HVAC contractor",
+  "city": "High Springs, FL",
+  "max": 20
+ },
+ {
+  "category": "HVAC contractor",
+  "city": "Keystone Heights, FL",
+  "max": 20
+ },
+ {
+  "category": "HVAC contractor",
+  "city": "Starke, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "Gainesville, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "Ocala, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "Newberry, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "Alachua, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "Belleview, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "The Villages, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "Lake City, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "Palatka, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "Williston, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "Dunnellon, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "High Springs, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "Keystone Heights, FL",
+  "max": 20
+ },
+ {
+  "category": "plumber",
+  "city": "Starke, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "Gainesville, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "Ocala, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "Newberry, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "Alachua, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "Belleview, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "The Villages, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "Lake City, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "Palatka, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "Williston, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "Dunnellon, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "High Springs, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "Keystone Heights, FL",
+  "max": 20
+ },
+ {
+  "category": "electrician",
+  "city": "Starke, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "Gainesville, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "Ocala, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "Newberry, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "Alachua, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "Belleview, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "The Villages, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "Lake City, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "Palatka, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "Williston, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "Dunnellon, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "High Springs, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "Keystone Heights, FL",
+  "max": 20
+ },
+ {
+  "category": "roofing contractor",
+  "city": "Starke, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "Gainesville, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "Ocala, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "Newberry, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "Alachua, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "Belleview, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "The Villages, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "Lake City, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "Palatka, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "Williston, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "Dunnellon, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "High Springs, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "Keystone Heights, FL",
+  "max": 20
+ },
+ {
+  "category": "pest control service",
+  "city": "Starke, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "Gainesville, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "Ocala, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "Newberry, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "Alachua, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "Belleview, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "The Villages, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "Lake City, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "Palatka, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "Williston, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "Dunnellon, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "High Springs, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "Keystone Heights, FL",
+  "max": 20
+ },
+ {
+  "category": "landscaping company",
+  "city": "Starke, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "Gainesville, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "Ocala, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "Newberry, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "Alachua, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "Belleview, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "The Villages, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "Lake City, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "Palatka, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "Williston, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "Dunnellon, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "High Springs, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "Keystone Heights, FL",
+  "max": 20
+ },
+ {
+  "category": "pressure washing service",
+  "city": "Starke, FL",
+  "max": 20
+ }
 ]

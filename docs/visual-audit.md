@@ -29,3 +29,11 @@ Cost: about 2-3 cents of Claude per lead (two images plus a short answer), no ex
 GitHub's schedule is best-effort (often hours late, sometimes skipped). Two safeguards:
 - The workflow cron is `17 9 * * 1-5` (off-peak minute) and a scheduled run exits early if another run already started today.
 - The dashboard Worker checks every 30 minutes and, on weekdays between 5:20 and 2:00 PM Eastern, starts the workflow itself if none has started today. Needs the Worker secret `GITHUB_DISPATCH_TOKEN` (fine-grained GitHub token for this repo, permission Actions: read and write). Without it this is simply off.
+
+## Finding enough leads
+
+- `config/targets.json` lists 7 trades x 13 towns (HVAC, plumber, electrician, roofing, pest control, landscaping, pressure
+  washing). Each weekday run works through a rotating slice of 5 targets (`TARGETS_PER_RUN`), up to 20 results each, so the whole
+  list is covered in a few weeks and a run stays well under the 45-minute limit. A manual run with a category and city ignores the rotation.
+- A site where no email was found is not crawled again for 60 days (`email_checked_at`, `RECHECK_DAYS` in `lead_finder.py`).
+- Audits and screenshots are only done for leads that have an email address.

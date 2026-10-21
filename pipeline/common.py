@@ -79,6 +79,12 @@ def connect(path=None):
     conn = sqlite3.connect(p)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    try:  # remember when a site was last searched for an email, so dead ends are not re-crawled every run
+        conn.execute("ALTER TABLE leads ADD COLUMN email_checked_at TEXT")
+        conn.execute("UPDATE leads SET email_checked_at=CURRENT_TIMESTAMP WHERE email IS NULL")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # column already there
     return conn
 
 

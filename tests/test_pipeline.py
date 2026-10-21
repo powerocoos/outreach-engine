@@ -235,6 +235,34 @@ class PushTests(unittest.TestCase):
 
 
 class RunAllTests(unittest.TestCase):
+    def test_targets_rotate_and_cover_everything(self):
+        import datetime
+        import run_all
+        targets = [{"category": "c", "city": str(i), "max": 20} for i in range(13)]
+        day = datetime.date(2026, 10, 21)
+        got = run_all.todays_targets(targets, day, 5)
+        self.assertEqual(len(got), 5)
+        self.assertEqual(run_all.todays_targets(targets[:4], day, 5), targets[:4])  # short list: all of it
+        seen = set()
+        for n in range(26):  # every target comes up within a couple of cycles
+            seen |= {t["city"] for t in run_all.todays_targets(targets, day + datetime.timedelta(days=n), 5)}
+        self.assertEqual(len(seen), 13)
+
+    def test_sites_without_email_are_not_recrawled_every_run(self):
+        import lead_finder
+        conn = connect()
+        conn.execute("INSERT INTO leads (place_id, company, website) VALUES ('p-old','Old Co','https://old.example')")
+        conn.execute("INSERT INTO leads (place_id, company, website, email_checked_at) "
+                     "VALUES ('p-new','Fresh Co','https://fresh.example', CURRENT_TIMESTAMP)")
+        conn.commit()
+        rows = conn.execute(
+            "SELECT company FROM leads WHERE email IS NULL AND website IS NOT NULL "
+            "AND (email_checked_at IS NULL OR email_checked_at < datetime('now', ?))", (f"-{lead_finder.RECHECK_DAYS} days",)
+        ).fetchall()
+        names = {r["company"] for r in rows}
+        self.assertIn("Old Co", names)
+        self.assertNotIn("Fresh Co", names)
+
     def test_targets_override_and_default(self):
         import run_all
         self.assertEqual(run_all.load_targets({"TARGET_CATEGORY": "Plumber", "TARGET_CITY": "Ocala, FL", "TARGET_MAX": "5"}),
