@@ -105,7 +105,7 @@ def dom_findings(facts, city, this_year=None):
         add("On a phone, the tap-to-call link is not visible on the first screen without scrolling.", "design")
     elif facts.get("tel_count", 0) == 0 and not facts.get("phone_text_in_view") and not facts.get("cta_in_view"):
         add("On a phone, no phone number or call/quote button is visible on the first screen.", "design")
-    elif not facts.get("cta_in_view"):
+    elif not facts.get("cta_in_view") and not facts.get("tel_in_view") and not facts.get("phone_text_in_view"):
         add("On a phone, no clear call-to-action button (call, quote, schedule) is visible on the first screen.", "design")
     cw = city_word(city)
     title = (facts.get("title") or "")
@@ -135,14 +135,23 @@ customer deciding whether to call. Each observation uses one category:
   outdated_design (the design looks clearly dated),
   readability (text is hard to read: tiny, low contrast, crowded),
   trust (nothing on the first screen builds trust: no reviews, license, real photos),
-  layout_problem (something looks broken: overlapping, cut off, covered by a banner or popup).
+  layout_problem (something looks broken: text overlapping or cut off by the page's own layout).
+Never report cookie or privacy notices, chat bubbles, floating buttons, pop-ups or accessibility widgets: they are
+add-ons that appear on many good sites and are not the business's design.
+Also rate the overall look of the site on a 1-5 "polish" scale, judged only from the screenshots:
+  5 = modern, consistent, professional, clearly well maintained;
+  4 = clean and current, minor rough edges;
+  3 = acceptable but plain, mixed or somewhat dated;
+  2 = dated or uneven, looks neglected in places;
+  1 = clearly outdated, broken or amateur.
+Judge the look only, not speed and not whether the business is good.
 Rules: describe only what is visible; no numbers, no scores, no guesses about the business or its results; do
 not repeat anything the measured facts already say; hedge opinions ("looks", "appears"); each text at most 30
 words, plain language, no jargon, ONE issue per observation. Never say whether a photo is stock, fake, AI or
 real, and never judge the business itself, only how the page looks and works. Do not mention reviews or
 social links (measured separately). If nothing is clearly wrong, return an empty list.
 
-Return ONLY JSON: {{"observations": [{{"category": str, "text": str}}]}}"""
+Return ONLY JSON: {{"polish": int, "observations": [{{"category": str, "text": str}}]}}"""
 
 
 def validate_vision(obs):
@@ -158,6 +167,8 @@ def validate_vision(obs):
             continue
         if re.search(r"\b(stock|fake|AI-generated|generic photo)\b", text, re.I):
             continue
+        if re.search(r"cookie|privacy (banner|notice|popup|pop-up)|\bchat\b|pop-?up|widget|floating|accessibility (button|icon)|side tab", text, re.I):
+            continue  # add-ons that sit on top of many good sites; not a design problem
         out.append({"text": text, "service": VISION_CATEGORIES[cat], "source": "vision"})
     return out
 
@@ -176,9 +187,37 @@ def claude_vision(facts, mobile_jpeg, desktop_jpeg, api_key):
     if status != 200:
         raise RuntimeError(f"Anthropic API {status}: {raw[:200].decode('utf-8', 'ignore')}")
     text = "".join(b.get("text", "") for b in json.loads(raw).get("content", []) if b.get("type") == "text")
+    return parse_vision(text)
+
+
+def parse_vision(text):
+    """Model reply -> (validated observations, polish 1-5 or None)."""
     if "{" not in text:
-        return []
-    return validate_vision(json.loads(text[text.find("{"): text.rfind("}") + 1]).get("observations", []))
+        return [], None
+    data = json.loads(text[text.find("{"): text.rfind("}") + 1])
+    polish = data.get("polish")
+    polish = polish if isinstance(polish, int) and not isinstance(polish, bool) and 1 <= polish <= 5 else None
+    return validate_vision(data.get("observations", [])), polish
+
+
+POLISH_SKIP_AT = int(os.environ.get("POLISH_SKIP_AT", "4"))   # 0 turns the rule off
+
+
+def hard_defect(facts, audit_findings=()):
+    """A measured problem a polished-looking site can still have, which is worth an email whatever it looks like."""
+    audit = " ".join(audit_findings)
+    if facts.get("overflow_x") or "Not secure" in audit or "no mobile viewport" in audit:
+        return True
+    # no phone number or call/quote button at all on the first phone screen
+    return (not facts.get("tel_in_view") and not facts.get("phone_text_in_view") and not facts.get("cta_in_view"))
+
+
+def should_skip_polished(polish, facts, audit_findings=(), threshold=None):
+    """Skip sites that look well kept unless a hard defect shows. Speed alone never overrides the look."""
+    threshold = POLISH_SKIP_AT if threshold is None else threshold
+    if not threshold or polish is None or polish < threshold:
+        return False
+    return not hard_defect(facts, audit_findings)
 
 
 def capture(url, stem):
@@ -240,12 +279,14 @@ def preview(sites, city, api_key, base, api_token):
             continue
         facts, mpath, dpath = got
         findings = dom_findings(facts, city)
+        polish = None
         if api_key:
             try:
-                findings += claude_vision(facts, mpath.read_bytes(), dpath.read_bytes(), api_key)
+                found, polish = claude_vision(facts, mpath.read_bytes(), dpath.read_bytes(), api_key)
+                findings += found
             except (RuntimeError, ValueError) as e:
                 print(f"  vision skipped: {e}")
-        print(f"== {site}")
+        print(f"== {site}  (polish {polish}/5; would be skipped: {should_skip_polished(polish, facts)})")
         for f in findings:
             print(f"  [{f['source']}/{f['service']}] {f['text']}")
         if base and api_token:
@@ -267,7 +308,7 @@ def main():
         return preview(args.preview, args.city, api_key, base, api_token)
     conn = connect()
     rows = conn.execute(
-        """SELECT l.id, l.company, l.website, l.city, l.email FROM leads l
+        """SELECT l.id, l.company, l.website, l.city, l.email, a.findings_json AS audit_json FROM leads l
            JOIN audits a ON a.lead_id=l.id
            LEFT JOIN visual_audits v ON v.lead_id=l.id
            WHERE v.lead_id IS NULL AND l.email IS NOT NULL AND a.reachable=1 AND l.status='audited'
@@ -280,18 +321,29 @@ def main():
             continue
         facts, mpath, dpath = got
         findings = dom_findings(facts, r["city"])
+        polish = None
         if api_key:
             try:
-                findings += claude_vision(facts, mpath.read_bytes(), dpath.read_bytes(), api_key)
+                found, polish = claude_vision(facts, mpath.read_bytes(), dpath.read_bytes(), api_key)
+                findings += found
             except (RuntimeError, ValueError) as e:
                 print(f"  vision skipped for {r['company']}: {e}")
         token = uuid.uuid4().hex
+        if should_skip_polished(polish, facts, json.loads(r["audit_json"] or "[]")):
+            # Looks well kept and nothing measured is broken: not worth an email. Recorded, no private page.
+            conn.execute(
+                "INSERT OR REPLACE INTO visual_audits (lead_id, findings_json, mobile_path, desktop_path, token, page_url, polish) "
+                "VALUES (?,?,?,?,?,?,?)", (r["id"], json.dumps(findings), str(mpath), str(dpath), token, None, polish))
+            conn.execute("UPDATE leads SET status='polished' WHERE id=?", (r["id"],))
+            conn.commit()
+            print(f"polished-skip {r['company']}: polish {polish}/5 and no hard defect")
+            continue
         page_url = publish(base, api_token, token, r, findings, mpath, dpath) if base and api_token else None
         conn.execute(
-            "INSERT OR REPLACE INTO visual_audits (lead_id, findings_json, mobile_path, desktop_path, token, page_url) "
-            "VALUES (?,?,?,?,?,?)", (r["id"], json.dumps(findings), str(mpath), str(dpath), token, page_url))
+            "INSERT OR REPLACE INTO visual_audits (lead_id, findings_json, mobile_path, desktop_path, token, page_url, polish) "
+            "VALUES (?,?,?,?,?,?,?)", (r["id"], json.dumps(findings), str(mpath), str(dpath), token, page_url, polish))
         conn.commit()
-        print(f"visual {r['company']}: {len(findings)} findings, page {'yes' if page_url else 'no'}")
+        print(f"visual {r['company']}: polish {polish}/5, {len(findings)} findings, page {'yes' if page_url else 'no'}")
 
 
 if __name__ == "__main__":

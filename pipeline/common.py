@@ -85,6 +85,11 @@ def connect(path=None):
         conn.commit()
     except sqlite3.OperationalError:
         pass  # column already there
+    try:  # 1-5 look-and-feel rating from the screenshots; sites that look well kept are not emailed
+        conn.execute("ALTER TABLE visual_audits ADD COLUMN polish INTEGER")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
     return conn
 
 

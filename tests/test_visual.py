@@ -30,8 +30,9 @@ class DomFindingTests(unittest.TestCase):
     def test_no_phone_anywhere_vs_cta_missing(self):
         none = dict(GOOD, tel_count=0, phone_text_in_view=False, cta_in_view=False, tel_in_view=False)
         self.assertIn("no phone number", visual.dom_findings(none, "Ocala, FL", 2026)[0]["text"])
+        # A visible phone number is a way to call: no "missing call-to-action" complaint (it fired on polished sites).
         only_cta = dict(GOOD, cta_in_view=False)
-        self.assertIn("call-to-action", visual.dom_findings(only_cta, "Ocala, FL", 2026)[0]["text"])
+        self.assertEqual(visual.dom_findings(only_cta, "Ocala, FL", 2026), [])
 
     def test_city_named_in_heading_is_enough(self):
         f = visual.dom_findings(dict(GOOD, title="Home", h1="Ocala's AC experts"), "Ocala, FL", 2026)
@@ -149,6 +150,35 @@ class RetryTests(unittest.TestCase):
                 os.environ.pop("ANTHROPIC_API_KEY", None)
             else:
                 os.environ["ANTHROPIC_API_KEY"] = old_key
+
+
+class PolishTests(unittest.TestCase):
+    def test_polish_is_parsed_and_clamped(self):
+        obs, polish = visual.parse_vision('{"polish": 5, "observations": []}')
+        self.assertEqual((obs, polish), ([], 5))
+        self.assertIsNone(visual.parse_vision('{"polish": 9, "observations": []}')[1])
+        self.assertIsNone(visual.parse_vision('{"polish": "high", "observations": []}')[1])
+        self.assertEqual(visual.parse_vision("no json here"), ([], None))
+
+    def test_polished_site_is_skipped_unless_a_hard_defect_shows(self):
+        self.assertTrue(visual.should_skip_polished(5, GOOD, [], threshold=4))
+        self.assertTrue(visual.should_skip_polished(4, GOOD, ["In Google's mobile speed test, the main content takes about 19 seconds to appear."], threshold=4))  # slow alone is not enough
+        self.assertFalse(visual.should_skip_polished(3, GOOD, [], threshold=4))
+        self.assertFalse(visual.should_skip_polished(None, GOOD, [], threshold=4))
+        self.assertFalse(visual.should_skip_polished(5, GOOD, [], threshold=0))   # rule switched off
+        for bad in (dict(GOOD, overflow_x=True), dict(GOOD, tel_in_view=False, phone_text_in_view=False, cta_in_view=False)):
+            self.assertFalse(visual.should_skip_polished(5, bad, [], threshold=4))
+        self.assertFalse(visual.should_skip_polished(5, GOOD, ["The site loads without HTTPS, so browsers show a 'Not secure' warning."], threshold=4))
+
+    def test_visible_phone_number_is_not_reported_as_missing_cta(self):
+        facts = dict(GOOD, cta_in_view=False, tel_in_view=True, phone_text_in_view=True)
+        self.assertEqual(visual.dom_findings(facts, "Ocala, FL", 2026), [])
+
+    def test_cookie_banner_and_chat_bubble_talk_is_dropped(self):
+        for text in ("The cookie notice covers the lower part of the headline.",
+                     "A round chat button looks to sit on top of the quote button.",
+                     "The floating tab appears to cover the end of the subheading."):
+            self.assertEqual(visual.validate_vision([{"category": "layout_problem", "text": text}]), [])
 
 
 if __name__ == "__main__":
