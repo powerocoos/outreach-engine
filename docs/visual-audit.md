@@ -65,3 +65,9 @@ Each run reports its outcome to `POST /api/runs` (table `run_log`), best effort.
 The Worker cron (every 30 minutes) and the "Check for replies" button pull received emails for the campaign from Instantly (`GET /emails?email_type=received&campaign_id=...`). Each new reply is stored once (quoted history stripped; out-of-office and bounce notices are filed as done) and Claude drafts a suggested answer from the reply, the email we sent and the verified findings. Nothing is sent from the dashboard: copy the answer into Instantly's inbox or your mail app, then Mark done.
 
 Needs: the Instantly API key to include the `emails:read` scope (the page and Health show a clear message if not), and the Worker secret `ANTHROPIC_API_KEY` (without it replies are listed but no suggestions are drafted). Optional Worker variable `BOOKING_LINK` is included in "interested" answers; otherwise the answer asks for a day and time. Suggested answers are short, never promise results, and use only facts from the original email and findings.
+
+## Faster review (`/review`)
+
+- Each draft shows a thumbnail of the phone screenshot (from its private page; click to open the page) and starts collapsed: first two findings and the subject. "Read and edit the emails" opens the full text; "Show full emails" in the toolbar opens every card.
+- Sort (oldest, newest, slowest mobile score, best reviews, company, trade, town), filter by trade or town, and search by company or email. Filtering and sorting happen in the browser over the loaded list (up to 300 drafts per tab).
+- Tick drafts (or "Select all shown") and use the bar at the bottom: Approve selected, Reject selected (optional reason), or Move back to pending on other tabs. `POST /api/review/bulk` applies the same checks as single approvals; any draft that fails (word limits, bounced contact) is listed and left unchanged while the rest go through. At most 100 per call.

@@ -37,18 +37,18 @@ export const FONT_LINKS = `<link rel="preconnect" href="https://fonts.googleapis
 export const REVIEW_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>Review drafts</title>
-${FONT_LINKS}<style>${BASE_CSS}</style></head><body>
+${FONT_LINKS}<style>${BASE_CSS}\n.tools select,.tools input[type=search]{width:auto;max-width:100%;padding:6px 10px}.tools .grow{flex:1;min-width:140px}.head{display:flex;gap:12px;align-items:flex-start}.head h2{flex:1}.thumb{width:72px;height:96px;object-fit:cover;object-position:top;border-radius:8px;border:1px solid var(--line);flex:none}.pick{width:20px;height:20px;margin-top:2px;flex:none}.subj{font-weight:500;margin:6px 0}.peek{color:var(--mut);font-size:14px;margin:4px 0}.link{background:none;border:0;color:var(--cta);cursor:pointer;font:inherit;padding:4px 0}.selbar{position:sticky;bottom:8px;z-index:5;background:var(--card);border:1px solid var(--cta);border-radius:12px;padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}</style></head><body>
 ${navHtml("review")}
 <h1>Review drafts</h1>
 <p class="sub">Edit anything you like, then approve. Approved drafts go into the Instantly CSV with your edits.</p>
-<div class="camp" id="camp"></div><div class="bar" id="bar"></div><div id="list"><p class="empty">Loading&hellip;</p></div>
+<div class="camp" id="camp"></div><div class="bar" id="bar"></div><div class="bar tools" id="tools"></div><div id="list"><p class="empty">Loading&hellip;</p></div>
 <script>
 var STATUSES=["pending","approved","rejected","exported"], cur="pending", counts={};
 function el(t,a,k){var e=document.createElement(t);for(var x in (a||{})){if(x==="text")e.textContent=a[x];else if(x==="cls")e.className=a[x];else e.setAttribute(x,a[x]);}(k||[]).forEach(function(c){e.appendChild(c)});return e}
 function api(path,opts){opts=opts||{};opts.headers=Object.assign({"x-requested-with":"review","content-type":"application/json"},opts.headers||{});return fetch(path,opts)}
 function words(t){return t.trim().split(/\\s+/).filter(Boolean).length}
 function renderBar(){var bar=document.getElementById("bar");bar.textContent="";
-  STATUSES.forEach(function(s){var b=el("button",{cls:"tab",type:"button","aria-pressed":String(s===cur),text:s+" ("+(counts[s]||0)+")"});b.onclick=function(){cur=s;load()};bar.appendChild(b)});
+  STATUSES.forEach(function(s){var b=el("button",{cls:"tab",type:"button","aria-pressed":String(s===cur),text:s+" ("+(counts[s]||0)+")"});b.onclick=function(){cur=s;sel={};load()};bar.appendChild(b)});
   bar.appendChild(el("span",{cls:"sp"}));
   var ex=el("button",{cls:"act primary",type:"button",text:"Download CSV ("+(counts.approved||0)+")"});ex.disabled=!(counts.approved>0);
   ex.onclick=function(){ex.disabled=true;api("/api/export/instantly",{method:"POST",body:"{}"}).then(function(r){var n=r.headers.get("x-exported-count");return r.blob().then(function(b){var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="instantly.csv";a.click();alert("Downloaded "+n+" lead(s). They are now marked exported.");load()})})};
@@ -59,15 +59,30 @@ function renderBar(){var bar=document.getElementById("bar");bar.textContent="";
 function field(label,node,wcFor){var l=el("label",{text:label});if(wcFor){var w=el("span",{cls:"wc"});l.appendChild(w);var u=function(){w.textContent=words(node.value)+" words"};node.addEventListener("input",u);u()}return [l,node]}
 function card(d){
   var c=el("div",{cls:"card"});
-  c.appendChild(el("h2",{text:d.company}));
+  var head=el("div",{cls:"head"});
+  var tk=tokenOf(d);
+  if(cur==="pending"||cur==="approved"||cur==="rejected"){var pk=el("input",{type:"checkbox",cls:"pick","aria-label":"Select "+d.company});pk.checked=!!sel[d.id];pk.onchange=function(){if(pk.checked)sel[d.id]=1;else delete sel[d.id];renderSel()};head.appendChild(pk)}
+  head.appendChild(el("h2",{text:d.company}));
+  if(tk){var ta=el("a",{href:"/a/"+tk,target:"_blank",rel:"noopener noreferrer","aria-label":"Open their private page"},[el("img",{cls:"thumb",src:"/a/"+tk+"/mobile.jpg",loading:"lazy",alt:""})]);head.appendChild(ta)}
+  c.appendChild(head);
   var meta=[d.contact_email,d.city,d.rating?d.rating+"\\u2605 ("+d.review_count+" reviews)":null].filter(Boolean).join(" \\u00b7 ");
   var m=el("div",{cls:"meta"});m.appendChild(document.createTextNode(meta+" \\u00b7 "));
   if(d.website&&/^https?:\\/\\//.test(d.website)){var a=el("a",{href:d.website,target:"_blank",rel:"noopener noreferrer",text:"website"});m.appendChild(a)}
   c.appendChild(m);
-  (d.findings||[]).forEach(function(f){c.appendChild(el("div",{cls:"find",text:f}))});
+  var fl=(d.findings||[]).filter(function(f){return !/^Private page/.test(f)});
+  var peek=el("div",{});
+  fl.slice(0,2).forEach(function(f){peek.appendChild(el("div",{cls:"find",text:f}))});
+  if(fl.length>2)peek.appendChild(el("div",{cls:"peek",text:"+ "+(fl.length-2)+" more finding(s)"}));
+  peek.appendChild(el("div",{cls:"subj",text:"Subject: "+d.subject}));
+  c.appendChild(peek);
+  var more=el("div",{});
+  fl.slice(2).forEach(function(f){more.appendChild(el("div",{cls:"find",text:f}))});
   var subj=el("input",{type:"text",value:d.subject});
   var e1=el("textarea",{}),e2=el("textarea",{}),e3=el("textarea",{});e1.value=d.email1;e2.value=d.email2;e3.value=d.email3;
-  field("Subject",subj).concat(field("Email 1 (day 1)",e1,1),field("Email 2 (day 4)",e2,1),field("Email 3 (day 8)",e3,1)).forEach(function(n){c.appendChild(n)});
+  field("Subject",subj).concat(field("Email 1 (day 1)",e1,1),field("Email 2 (day 4)",e2,1),field("Email 3 (day 8)",e3,1)).forEach(function(n){more.appendChild(n)});
+  more.style.display=full?"":"none";peek.style.display=full?"none":"";
+  var tg=el("button",{cls:"link",type:"button",text:full?"Hide emails":"Read and edit the emails"});tg.onclick=function(){var open=more.style.display==="none";more.style.display=open?"":"none";peek.style.display=open?"none":"";tg.textContent=open?"Hide emails":"Read and edit the emails"};
+  c.appendChild(tg);c.appendChild(more);
   var msg=el("div",{cls:"msg"});
   var why=el("select",{"aria-label":"Reason for rejecting"});[["","Reason for rejecting (optional)"],["polished","Site already looks good"],["fit","Not a good fit"],["contact","Wrong or poor contact"],["dupe","Duplicate or already contacted"],["other","Other"]].forEach(function(o){why.appendChild(el("option",{value:o[0],text:o[1]}))});why.style.cssText="width:auto;max-width:100%";
   function send(action){msg.textContent="";return api("/api/review/"+d.id,{method:"POST",body:JSON.stringify({action:action,reason:why.value,subject:subj.value,email1:e1.value,email2:e2.value,email3:e3.value})}).then(function(r){return r.json().then(function(j){if(!r.ok){msg.textContent=j.error||"Something went wrong";return false}return true})})}
@@ -77,9 +92,45 @@ function card(d){
   else if(d.status==="approved"){row.appendChild(btn("Save edits","","save",0));row.appendChild(btn("Move back to pending","","reset",1))}
   else if(d.status==="rejected"){row.appendChild(btn("Move back to pending","","reset",1))}
   c.appendChild(row);c.appendChild(msg);return c}
-function load(){api("/api/review?status="+cur).then(function(r){return r.json()}).then(function(j){counts=j.counts;renderBar();var list=document.getElementById("list");list.textContent="";
-  if(!j.drafts.length)list.appendChild(el("p",{cls:"empty",text:"Nothing here."}));
-  j.drafts.forEach(function(d){list.appendChild(card(d))})}).catch(function(e){document.getElementById("list").textContent="Failed to load: "+e})}
+var all=[],sel={},sortKey="old",fTrade="",fTown="",fQ="",full=false;
+function tokenOf(d){var m=(d.findings||[]).join(" ").match(/\\/a\\/([0-9a-f]{32})/);return m?m[1]:null}
+var SORTS={old:["Oldest first",function(a,b){return a.id-b.id}],newest:["Newest first",function(a,b){return b.id-a.id}],
+  score:["Slowest mobile score first",function(a,b){return (a.mobile_score==null?999:a.mobile_score)-(b.mobile_score==null?999:b.mobile_score)||a.id-b.id}],
+  rating:["Best reviews first",function(a,b){return (b.rating||0)-(a.rating||0)||a.id-b.id}],
+  az:["Company A to Z",function(a,b){return a.company.localeCompare(b.company)}],
+  trade:["Trade",function(a,b){return (a.category||"").localeCompare(b.category||"")||a.id-b.id}],
+  town:["Town",function(a,b){return (a.city||"").localeCompare(b.city||"")||a.id-b.id}]};
+function visible(){var q=fQ.toLowerCase();return all.filter(function(d){return (!fTrade||d.category===fTrade)&&(!fTown||d.city===fTown)&&(!q||(d.company+" "+d.contact_email).toLowerCase().indexOf(q)>=0)}).sort(SORTS[sortKey][1])}
+function opts(sel2,items,first){sel2.textContent="";sel2.appendChild(el("option",{value:"",text:first}));items.forEach(function(v){sel2.appendChild(el("option",{value:v,text:v}))})}
+function uniq(k){var o={};all.forEach(function(d){if(d[k])o[d[k]]=1});return Object.keys(o).sort()}
+function renderTools(){var t=document.getElementById("tools");t.textContent="";
+  var so=el("select",{"aria-label":"Sort"});Object.keys(SORTS).forEach(function(k){var o=el("option",{value:k,text:SORTS[k][0]});if(k===sortKey)o.selected=true;so.appendChild(o)});so.onchange=function(){sortKey=so.value;renderList()};
+  var tr=el("select",{"aria-label":"Trade"});opts(tr,uniq("category"),"All trades");tr.value=fTrade;tr.onchange=function(){fTrade=tr.value;renderList()};
+  var tw=el("select",{"aria-label":"Town"});opts(tw,uniq("city"),"All towns");tw.value=fTown;tw.onchange=function(){fTown=tw.value;renderList()};
+  var q=el("input",{type:"search",placeholder:"Search company or email",cls:"grow","aria-label":"Search"});q.value=fQ;q.oninput=function(){fQ=q.value;renderList()};
+  var fu=el("label",{style:"display:flex;gap:6px;align-items:center;margin:0;text-transform:none;letter-spacing:0;font-size:13px"},[]);var fc=el("input",{type:"checkbox"});fc.style.width="auto";fc.checked=full;fc.onchange=function(){full=fc.checked;renderList()};fu.appendChild(fc);fu.appendChild(document.createTextNode("Show full emails"));
+  [so,tr,tw,q,fu].forEach(function(n){t.appendChild(n)})}
+function renderSel(){var bar=document.getElementById("selbar");if(bar)bar.remove();
+  var ids=Object.keys(sel);if(!ids.length)return;
+  bar=el("div",{cls:"selbar",id:"selbar"});bar.appendChild(el("b",{text:ids.length+" selected"}));
+  function go(action,label,cls){var b=el("button",{cls:"act "+cls,type:"button",text:label});b.onclick=function(){
+    if(!confirm(label+" for "+ids.length+" draft(s)?"))return;b.disabled=true;
+    api("/api/review/bulk",{method:"POST",body:JSON.stringify({action:action,ids:ids.map(Number),reason:why.value})}).then(function(r){return r.json()}).then(function(j){
+      if(j.error)alert(j.error);else if(j.failed&&j.failed.length)alert(j.done+" done. "+j.failed.length+" not changed:\\n"+j.failed.map(function(f){return f.company+": "+f.error}).join("\\n"));
+      sel={};load()}).catch(function(e){alert("Failed: "+e);b.disabled=false})};bar.appendChild(b)}
+  var why=el("select",{"aria-label":"Reason for rejecting"});[["","Reject reason (optional)"],["polished","Site already looks good"],["fit","Not a good fit"],["contact","Wrong or poor contact"],["dupe","Duplicate or already contacted"],["other","Other"]].forEach(function(o){why.appendChild(el("option",{value:o[0],text:o[1]}))});why.style.cssText="width:auto;max-width:100%";
+  if(cur==="pending"){go("approve","Approve selected","ok");bar.appendChild(why);go("reject","Reject selected","bad")}else go("reset","Move selected back to pending","");
+  var cl=el("button",{cls:"link",type:"button",text:"Clear"});cl.onclick=function(){sel={};renderList()};bar.appendChild(cl);
+  document.getElementById("list").appendChild(bar)}
+function renderList(){var list=document.getElementById("list");list.textContent="";var v=visible();
+  if(!all.length){list.appendChild(el("p",{cls:"empty",text:"Nothing here."}));return}
+  if(!v.length){list.appendChild(el("p",{cls:"empty",text:"No drafts match these filters."}));return}
+  var top=el("div",{cls:"bar"});var sa=el("input",{type:"checkbox",cls:"pick","aria-label":"Select all shown"});sa.checked=v.every(function(d){return sel[d.id]});
+  sa.onchange=function(){v.forEach(function(d){if(sa.checked)sel[d.id]=1;else delete sel[d.id]});renderList()};
+  top.appendChild(sa);top.appendChild(el("span",{cls:"meta",text:"Select all "+v.length+" shown"}));list.appendChild(top);
+  v.forEach(function(d){list.appendChild(card(d))});renderSel()}
+function load(){api("/api/review?status="+cur).then(function(r){return r.json()}).then(function(j){counts=j.counts;all=j.drafts;
+  var keep={};all.forEach(function(d){if(sel[d.id])keep[d.id]=1});sel=keep;renderBar();renderTools();renderList()}).catch(function(e){document.getElementById("list").textContent="Failed to load: "+e})}
 function loadCamp(){var box=document.getElementById("camp");api("/api/campaign").then(function(r){return r.json()}).then(function(c){box.textContent="";
   if(!c.configured){box.textContent="Instantly is not connected yet.";return}
   if(c.error){box.textContent="Campaign status unavailable: "+c.error;return}

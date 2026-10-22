@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --no-warnings --test test/logic.test.js test/worker.test.js test/social.test.js test/audit.test.js test/kick.test.js test/hot.test.js test/skipped.test.js test/funnel.test.js test/health.test.js test/replies.test.js",
+    "test": "node --no-warnings --test test/logic.test.js test/worker.test.js test/social.test.js test/audit.test.js test/kick.test.js test/hot.test.js test/skipped.test.js test/funnel.test.js test/health.test.js test/replies.test.js test/bulk.test.js",
     "deploy": "wrangler deploy"
   }
 }

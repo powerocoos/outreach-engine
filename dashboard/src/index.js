@@ -205,21 +205,17 @@ async function handleReviewList(request, env) {
     counts[r.status] = r.n;
   }
   const rows = (await env.DB.prepare(
-    "SELECT * FROM drafts WHERE status=? ORDER BY id LIMIT 100").bind(status).all()).results;
+    "SELECT * FROM drafts WHERE status=? ORDER BY id LIMIT 300").bind(status).all()).results;
   const drafts = rows.map((r) => ({ ...r, findings: safeJson(r.findings) }));
   return json({ counts, drafts });
 }
 
 function safeJson(t) { try { return JSON.parse(t) ?? []; } catch { return []; } }
 
-async function handleReviewAction(request, env, id) {
-  if (!csrfOk(request)) return json({ error: "missing header" }, 403);
-  let body;
-  try { body = await request.json(); } catch { return json({ error: "bad json" }, 400); }
-  if (!REVIEW_ACTIONS.includes(body.action)) return json({ error: "bad action" }, 400);
+// Applies one review action to one draft. Returns [httpStatus, payload] so single and bulk calls share the same rules.
+async function applyReviewAction(env, id, body) {
   const d = await env.DB.prepare("SELECT * FROM drafts WHERE id=?").bind(id).first();
-  if (!d) return json({ error: "not found" }, 404);
-
+  if (!d) return [404, { error: "not found" }];
   const next = { subject: d.subject, email1: d.email1, email2: d.email2, email3: d.email3 };
   let edited = d.edited;
   if (body.action === "save" || body.action === "approve") {
@@ -229,9 +225,9 @@ async function handleReviewAction(request, env, id) {
   }
   if (body.action === "approve") {
     const problems = draftProblems(next);
-    if (problems.length) return json({ error: problems.join("; ") }, 422);
+    if (problems.length) return [422, { error: problems.join("; ") }];
     const lead = await env.DB.prepare("SELECT status FROM leads WHERE contact_email=?").bind(d.contact_email).first();
-    if (lead && lead.status === "dead") return json({ error: "this contact bounced or unsubscribed" }, 409);
+    if (lead && lead.status === "dead") return [409, { error: "this contact bounced or unsubscribed" }];
   }
   const status = { approve: "approved", reject: "rejected", reset: "pending", save: d.status }[body.action];
   if (body.action === "save" || body.action === "approve") {
@@ -250,7 +246,36 @@ async function handleReviewAction(request, env, id) {
        VALUES (?,?,?,?,?,?,?)`
     ).bind(d.company, d.contact_email, d.website, d.city, d.category, d.angle, d.mobile_score).run();
   }
-  return json({ ok: true, status });
+  return [200, { ok: true, status }];
+}
+
+async function handleReviewAction(request, env, id) {
+  if (!csrfOk(request)) return json({ error: "missing header" }, 403);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "bad json" }, 400); }
+  if (!REVIEW_ACTIONS.includes(body.action)) return json({ error: "bad action" }, 400);
+  const [code, payload] = await applyReviewAction(env, id, body);
+  return json(payload, code);
+}
+
+// Approve, reject or reset many drafts at once (the Review page's selection toolbar).
+async function handleReviewBulk(request, env) {
+  if (!csrfOk(request)) return json({ error: "missing header" }, 403);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "bad json" }, 400); }
+  if (!["approve", "reject", "reset"].includes(body.action)) return json({ error: "bad action" }, 400);
+  const ids = [...new Set((Array.isArray(body.ids) ? body.ids : []).map(Number).filter(Number.isInteger))].slice(0, 100);
+  if (!ids.length) return json({ error: "nothing selected" }, 400);
+  let done = 0; const failed = [];
+  for (const id of ids) {
+    const [code, payload] = await applyReviewAction(env, id, { action: body.action, reason: body.reason });
+    if (code === 200) done++;
+    else {
+      const row = await env.DB.prepare("SELECT company FROM drafts WHERE id=?").bind(id).first();
+      failed.push({ id, company: row?.company || String(id), error: payload.error });
+    }
+  }
+  return json({ ok: true, done, failed });
 }
 
 // Downloads approved drafts as an Instantly CSV and marks them exported so they are not imported twice.
@@ -504,6 +529,7 @@ export default {
     }
     if (pathname === "/api/social" && request.method === "GET") { await ensureSchema(env); return handleSocialList(request, env); }
     if ((m = pathname.match(/^\/api\/social\/(\d+)$/)) && request.method === "POST") { await ensureSchema(env); return handleSocialAction(request, env, Number(m[1])); }
+    if (pathname === "/api/review/bulk" && request.method === "POST") { await ensureSchema(env); return handleReviewBulk(request, env); }
     if (pathname === "/api/review" && request.method === "GET") { await ensureSchema(env); return handleReviewList(request, env); }
     if ((m = pathname.match(/^\/api\/review\/(\d+)$/)) && request.method === "POST") { await ensureSchema(env); return handleReviewAction(request, env, Number(m[1])); }
     if (pathname === "/api/send/instantly" && request.method === "POST") { await ensureSchema(env); return handleSendToInstantly(request, env); }
