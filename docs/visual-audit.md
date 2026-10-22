@@ -37,3 +37,11 @@ GitHub's schedule is best-effort (often hours late, sometimes skipped). Two safe
   list is covered in a few weeks and a run stays well under the 45-minute limit. A manual run with a category and city ignores the rotation.
 - A site where no email was found is not crawled again for 60 days (`email_checked_at`, `RECHECK_DAYS` in `lead_finder.py`).
 - Audits and screenshots are only done for leads that have an email address.
+
+## Hot leads (`/hot`)
+
+Shows prospects who opened their private screenshot page, hottest first. Two or more views, or views on different days, = Hot; one view = Warm. A "New" badge marks activity since you last opened the page (kept in the browser).
+
+- Link scanners (security tools, previews, empty user agents) are ignored; they are still logged as `audit_viewed` touches.
+- Your own views are not logged: opening the dashboard sets a one-year `ocoos_owner` cookie that applies to `/a/` pages in that browser.
+- Optional text alert via the Twilio secrets (`TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM`, `ALERT_PHONE`): sent on the first real view and the third. Without those secrets nothing is sent and the page is the only signal.

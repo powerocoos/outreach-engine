@@ -1,4 +1,5 @@
 import { kickOutreach } from "./kick.js";
+import { HOT_PAGE, handleHotList, hasOwnerCookie, ownerCookieHeader, isBot, alertTextForView } from "./hot.js";
 import { AUDIT_DDL, handleAuditImagePut, handleAuditPut, handleAuditImageGet, handleAuditView } from "./audit_page.js";
 import { normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
 import { REVIEW_PAGE, NAV_CSS, MOBILE_CSS, navHtml } from "./review_page.js";
@@ -444,7 +445,16 @@ export default {
     if ((m = pathname.match(/^\/api\/audit\/([0-9a-f]{32})\/(mobile|desktop)\.jpg$/)) && request.method === "PUT") { await ensureSchema(env); return handleAuditImagePut(request, env, m[1], m[2]); }
     if ((m = pathname.match(/^\/api\/audit\/([0-9a-f]{32})$/)) && request.method === "PUT") { await ensureSchema(env); return handleAuditPut(request, env, m[1]); }
     if ((m = pathname.match(/^\/a\/([0-9a-f]{32})\/(mobile|desktop)\.jpg$/)) && request.method === "GET") return handleAuditImageGet(env, m[1], m[2]);
-    if ((m = pathname.match(/^\/a\/([0-9a-f]{32})$/)) && request.method === "GET") { await ensureSchema(env); return handleAuditView(request, env, m[1]); }
+    if ((m = pathname.match(/^\/a\/([0-9a-f]{32})$/)) && request.method === "GET") { await ensureSchema(env); return handleAuditView(request, env, m[1], {
+      isOwner: hasOwnerCookie,
+      onView: async (row, ua) => {
+        if (isBot(ua)) return;
+        const n = (await env.DB.prepare("SELECT raw FROM touches WHERE event='audit_viewed' AND contact_email=?").bind(row.contact_email).all())
+          .results.filter((r) => !isBot(r.raw)).length;
+        // Text only on the first real view and then on the 3rd, so it stays a signal.
+        if (n === 1 || n === 3) ctx.waitUntil(sendSms(env, alertTextForView(row.company, n)).catch(() => {}));
+      },
+    }); }
     if ((m = pathname.match(/^\/api\/media\/([^/]+)$/)) && request.method === "PUT") return handleMediaUpload(request, env, m[1]);
     if ((m = pathname.match(/^\/v\/([0-9a-f]{32})\.mp4$/)) && request.method === "GET") return handleMediaFile(request, env, m[1]);
     if ((m = pathname.match(/^\/v\/([0-9a-f]{32})$/)) && request.method === "GET") return handleMediaView(request, env, ctx, m[1]);
@@ -452,8 +462,12 @@ export default {
     if (!basicAuthOk(request, env)) return challenge();
     if (pathname === "/api/stats") return json(await stats(env));
     if (pathname === "/review") {
-      return new Response(REVIEW_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
+      return new Response(REVIEW_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex", "set-cookie": ownerCookieHeader() } });
     }
+    if (pathname === "/hot") {
+      return new Response(HOT_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex", "set-cookie": ownerCookieHeader() } });
+    }
+    if (pathname === "/api/hot" && request.method === "GET") { await ensureSchema(env); return handleHotList(env); }
     if (pathname === "/social") {
       return new Response(SOCIAL_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
     }
@@ -475,7 +489,7 @@ export default {
     if (pathname === "/api/campaign/pause" && request.method === "POST") return handleCampaignAction(request, env, "pause");
     if (pathname === "/api/export/instantly" && request.method === "POST") { await ensureSchema(env); return handleExport(request, env); }
     if (pathname === "/" || pathname === "/dashboard") {
-      return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
+      return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex", "set-cookie": ownerCookieHeader() } });
     }
     return new Response("Not found", { status: 404 });
   },

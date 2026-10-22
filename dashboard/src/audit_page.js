@@ -60,14 +60,18 @@ const OTHER = [
   ["Graphic design and social media", "Logos, branded images and regular posts."],
 ];
 
-export async function handleAuditView(request, env, token) {
+export async function handleAuditView(request, env, token, hooks = {}) {
   const row = await env.DB.prepare("SELECT * FROM audit_pages WHERE token=?").bind(token).first();
   if (!row) return new Response("Not found", { status: 404 });
   const lead = row.contact_email
     ? await env.DB.prepare("SELECT id FROM leads WHERE contact_email=?").bind(row.contact_email).first() : null;
-  // Email security scanners sometimes prefetch links, so early views may not be a person.
-  await env.DB.prepare("INSERT INTO touches (lead_id, contact_email, event, raw) VALUES (?,?,?,?)")
-    .bind(lead?.id ?? null, row.contact_email, "audit_viewed", (request.headers.get("user-agent") || "").slice(0, 200)).run();
+  // Your own views (owner cookie) are not logged. Scanner views are logged but ignored by the Hot leads page.
+  if (!(hooks.isOwner && hooks.isOwner(request))) {
+    const ua = (request.headers.get("user-agent") || "").slice(0, 200);
+    await env.DB.prepare("INSERT INTO touches (lead_id, contact_email, event, raw) VALUES (?,?,?,?)")
+      .bind(lead?.id ?? null, row.contact_email, "audit_viewed", ua).run();
+    if (hooks.onView) await hooks.onView(row, ua).catch(() => {});
+  }
   let findings = [];
   try { findings = JSON.parse(row.findings); } catch { /* keep empty */ }
   const list = findings.length
