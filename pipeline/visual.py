@@ -308,7 +308,7 @@ def main():
         return preview(args.preview, args.city, api_key, base, api_token)
     conn = connect()
     rows = conn.execute(
-        """SELECT l.id, l.company, l.website, l.city, l.email, a.findings_json AS audit_json FROM leads l
+        """SELECT l.id, l.company, l.website, l.city, l.email, l.force_send, a.findings_json AS audit_json FROM leads l
            JOIN audits a ON a.lead_id=l.id
            LEFT JOIN visual_audits v ON v.lead_id=l.id
            WHERE v.lead_id IS NULL AND l.email IS NOT NULL AND a.reachable=1 AND l.status='audited'
@@ -329,7 +329,7 @@ def main():
             except (RuntimeError, ValueError) as e:
                 print(f"  vision skipped for {r['company']}: {e}")
         token = uuid.uuid4().hex
-        if should_skip_polished(polish, facts, json.loads(r["audit_json"] or "[]")):
+        if not r["force_send"] and should_skip_polished(polish, facts, json.loads(r["audit_json"] or "[]")):
             # Looks well kept and nothing measured is broken: not worth an email. Recorded, no private page.
             conn.execute(
                 "INSERT OR REPLACE INTO visual_audits (lead_id, findings_json, mobile_path, desktop_path, token, page_url, polish) "

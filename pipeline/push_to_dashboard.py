@@ -34,10 +34,42 @@ def collect(conn):
     return out
 
 
+def collect_skipped(conn):
+    """Sites skipped as well kept, not yet shown on the dashboard's Skipped page."""
+    rows = conn.execute(
+        """SELECT l.id lead_id, l.company, l.website, l.city, l.category, l.rating, l.review_count,
+                  v.polish, v.findings_json
+           FROM leads l JOIN visual_audits v ON v.lead_id=l.id
+           WHERE l.status='polished' AND l.skip_pushed=0 AND l.website IS NOT NULL"""
+    ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["findings"] = [f["text"] for f in json.loads(d.pop("findings_json") or "[]") if f.get("text")]
+        out.append(d)
+    return out
+
+
+def push_skipped(conn, url, token):
+    skipped = collect_skipped(conn)
+    if not skipped:
+        return
+    status, _, _, raw = http_request(
+        url + "/api/skipped", method="POST", headers={"Authorization": f"Bearer {token}"},
+        body={"skipped": [{k: v for k, v in d.items() if k != "lead_id"} for d in skipped]})
+    if status != 200:
+        print("Could not send skipped sites to the dashboard:", status, raw[:200].decode("utf-8", "ignore"))
+        return
+    conn.executemany("UPDATE leads SET skip_pushed=1 WHERE id=?", [(d["lead_id"],) for d in skipped])
+    conn.commit()
+    print(f"Sent {len(skipped)} skipped site(s) to the Skipped page.")
+
+
 def main():
     url = require_env("DASHBOARD_URL").rstrip("/")
     token = require_env("API_TOKEN")
     conn = connect()
+    push_skipped(conn, url, token)
     drafts = collect(conn)
     if not drafts:
         print("No new drafts to send.")

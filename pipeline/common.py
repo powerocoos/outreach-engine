@@ -85,6 +85,12 @@ def connect(path=None):
         conn.commit()
     except sqlite3.OperationalError:
         pass  # column already there
+    for col in ("force_send INTEGER DEFAULT 0", "skip_pushed INTEGER DEFAULT 0"):
+        try:  # force_send: you chose "send anyway" for a skipped site; skip_pushed: shown on the Skipped page
+            conn.execute("ALTER TABLE leads ADD COLUMN " + col)
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
     try:  # 1-5 look-and-feel rating from the screenshots; sites that look well kept are not emailed
         conn.execute("ALTER TABLE visual_audits ADD COLUMN polish INTEGER")
         conn.commit()

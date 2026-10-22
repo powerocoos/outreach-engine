@@ -1,4 +1,5 @@
 import { kickOutreach } from "./kick.js";
+import { SKIPPED_DDL, DRAFT_MIGRATIONS, REJECT_REASONS, SKIPPED_PAGE, handleSkippedIngest, handleSkippedOverrides, handleSkippedDone, handleSkippedList, handleSkippedAction } from "./skipped.js";
 import { HOT_PAGE, handleHotList, hasOwnerCookie, ownerCookieHeader, isBot, alertTextForView } from "./hot.js";
 import { AUDIT_DDL, handleAuditImagePut, handleAuditPut, handleAuditImageGet, handleAuditView } from "./audit_page.js";
 import { normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
@@ -149,8 +150,8 @@ const DRAFTS_DDL = [
 const schemaDone = new WeakSet();
 async function ensureSchema(env) {
   if (schemaDone.has(env.DB)) return;
-  for (const sql of [...DRAFTS_DDL, ...SOCIAL_DDL, ...AUDIT_DDL]) await env.DB.prepare(sql).run();
-  for (const sql of SOCIAL_MIGRATIONS) { try { await env.DB.prepare(sql).run(); } catch { /* column already exists */ } }
+  for (const sql of [...DRAFTS_DDL, ...SOCIAL_DDL, ...AUDIT_DDL, ...SKIPPED_DDL]) await env.DB.prepare(sql).run();
+  for (const sql of [...SOCIAL_MIGRATIONS, ...DRAFT_MIGRATIONS]) { try { await env.DB.prepare(sql).run(); } catch { /* column already exists */ } }
   schemaDone.add(env.DB);
 }
 
@@ -236,6 +237,8 @@ async function handleReviewAction(request, env, id) {
   }
   if (body.action !== "save") {
     await env.DB.prepare("UPDATE drafts SET status=?, decided_at=CURRENT_TIMESTAMP WHERE id=?").bind(status, id).run();
+    const reason = body.action === "reject" && Object.hasOwn(REJECT_REASONS, body.reason) ? body.reason : null;
+    await env.DB.prepare("UPDATE drafts SET reject_reason=? WHERE id=?").bind(reason, id).run();
   }
   if (body.action === "approve") {
     // Approved drafts become tracked leads so webhook events and stats can match them.
@@ -435,6 +438,9 @@ export default {
     const { pathname } = new URL(request.url);
     if (pathname === "/webhook/instantly" && request.method === "POST") return handleWebhook(request, env, ctx);
     if (pathname === "/api/leads" && request.method === "POST") return handleImport(request, env);
+    if (pathname === "/api/skipped" && request.method === "POST") { await ensureSchema(env); return handleSkippedIngest(request, env); }
+    if (pathname === "/api/skipped/overrides" && request.method === "GET") { await ensureSchema(env); return handleSkippedOverrides(request, env); }
+    if (pathname === "/api/skipped/done" && request.method === "POST") { await ensureSchema(env); return handleSkippedDone(request, env); }
     if (pathname === "/api/drafts" && request.method === "POST") { await ensureSchema(env); return handleDraftImport(request, env); }
     if (pathname === "/api/social" && request.method === "POST") { await ensureSchema(env); return handleSocialIngest(request, env); }
     if (pathname === "/api/social/known" && request.method === "GET") { await ensureSchema(env); return handleSocialKnown(request, env); }
@@ -464,6 +470,11 @@ export default {
     if (pathname === "/review") {
       return new Response(REVIEW_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex", "set-cookie": ownerCookieHeader() } });
     }
+    if (pathname === "/skipped") {
+      return new Response(SKIPPED_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
+    }
+    if (pathname === "/api/skipped" && request.method === "GET") { await ensureSchema(env); return handleSkippedList(env); }
+    if ((m = pathname.match(/^\/api\/skipped\/(\d+)$/)) && request.method === "POST") { await ensureSchema(env); return handleSkippedAction(request, env, Number(m[1])); }
     if (pathname === "/hot") {
       return new Response(HOT_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex", "set-cookie": ownerCookieHeader() } });
     }

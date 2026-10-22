@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS drafts (
   rating REAL,
   review_count INTEGER,
   findings TEXT,                 -- JSON array of verified findings
+  reject_reason TEXT,            -- why a draft was rejected (polished | fit | contact | dupe | other)
   subject TEXT NOT NULL,
   email1 TEXT NOT NULL,
   email2 TEXT NOT NULL,
@@ -104,4 +105,16 @@ CREATE TABLE IF NOT EXISTS audit_pages (
   website TEXT,
   findings TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sites the pipeline skipped because they look well kept; you can choose "send anyway"
+CREATE TABLE IF NOT EXISTS skipped_leads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  website TEXT NOT NULL UNIQUE,
+  company TEXT NOT NULL,
+  city TEXT, category TEXT, rating REAL, review_count INTEGER, polish INTEGER,
+  findings TEXT,
+  status TEXT NOT NULL DEFAULT 'skipped',   -- skipped | send | drafted | dismissed
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  decided_at TEXT
 );

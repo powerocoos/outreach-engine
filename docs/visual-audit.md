@@ -45,3 +45,9 @@ Shows prospects who opened their private screenshot page, hottest first. Two or 
 - Link scanners (security tools, previews, empty user agents) are ignored; they are still logged as `audit_viewed` touches.
 - Your own views are not logged: opening the dashboard sets a one-year `ocoos_owner` cookie that applies to `/a/` pages in that browser.
 - Optional text alert via the Twilio secrets (`TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM`, `ALERT_PHONE`): sent on the first real view and the third. Without those secrets nothing is sent and the page is the only signal.
+
+## Skipped leads and reject reasons (`/skipped`)
+
+- Sites skipped by the polish rule are sent to the dashboard (`push_to_dashboard.py`, table `skipped_leads`) with their polish rating and measured findings. Sites skipped before this feature existed are sent on the next run.
+- **Send anyway** marks a site; at the start of the next run `overrides.py` resets that lead (`status='audited'`, `force_send=1`), so the visual step builds its private page without the polish skip and drafting and Review follow as usual. **Dismiss** hides it; **Undo** reverses either.
+- When you reject a draft on the Review page you can pick a reason (site already looks good, not a good fit, wrong contact, duplicate, other). The counts show at the top of the Skipped page. If many rejections say "site already looks good", lower `POLISH_SKIP_AT`; if you keep choosing Send anyway on skipped sites, raise it.
