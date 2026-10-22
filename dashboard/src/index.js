@@ -1,4 +1,5 @@
 import { kickOutreach } from "./kick.js";
+import { REPLIES_DDL, REPLIES_PAGE, syncReplies, handleRepliesList, handleRepliesSync, handleReplyAction } from "./replies.js";
 import { HEALTH_DDL, HEALTH_PAGE, handleRunReport, handleHealth, alertOnProblems } from "./health.js";
 import { FUNNEL_PAGE, handleFunnel } from "./funnel.js";
 import { SKIPPED_DDL, DRAFT_MIGRATIONS, REJECT_REASONS, SKIPPED_PAGE, handleSkippedIngest, handleSkippedOverrides, handleSkippedDone, handleSkippedList, handleSkippedAction } from "./skipped.js";
@@ -152,7 +153,7 @@ const DRAFTS_DDL = [
 const schemaDone = new WeakSet();
 async function ensureSchema(env) {
   if (schemaDone.has(env.DB)) return;
-  for (const sql of [...DRAFTS_DDL, ...SOCIAL_DDL, ...AUDIT_DDL, ...SKIPPED_DDL, ...HEALTH_DDL]) await env.DB.prepare(sql).run();
+  for (const sql of [...DRAFTS_DDL, ...SOCIAL_DDL, ...AUDIT_DDL, ...SKIPPED_DDL, ...HEALTH_DDL, ...REPLIES_DDL]) await env.DB.prepare(sql).run();
   for (const sql of [...SOCIAL_MIGRATIONS, ...DRAFT_MIGRATIONS]) { try { await env.DB.prepare(sql).run(); } catch { /* column already exists */ } }
   schemaDone.add(env.DB);
 }
@@ -436,6 +437,7 @@ export default {
     ctx.waitUntil(ensureSchema(env).then(() => publishDue(env)).catch(() => {}));
     ctx.waitUntil(kickOutreach(env).catch(() => {}));
     ctx.waitUntil(ensureSchema(env).then(() => alertOnProblems(env, sendSms)).catch(() => {}));
+    ctx.waitUntil(ensureSchema(env).then(() => syncReplies(env)).catch(() => {}));
   },
   async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url);
@@ -474,6 +476,12 @@ export default {
     if (pathname === "/review") {
       return new Response(REVIEW_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex", "set-cookie": ownerCookieHeader() } });
     }
+    if (pathname === "/replies") {
+      return new Response(REPLIES_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
+    }
+    if (pathname === "/api/replies" && request.method === "GET") { await ensureSchema(env); return handleRepliesList(env, new URL(request.url).searchParams.get("status")); }
+    if (pathname === "/api/replies/sync" && request.method === "POST") { await ensureSchema(env); return handleRepliesSync(request, env); }
+    if ((m = pathname.match(/^\/api\/replies\/(\d+)$/)) && request.method === "POST") { await ensureSchema(env); return handleReplyAction(request, env, Number(m[1])); }
     if (pathname === "/health") {
       return new Response(HEALTH_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
     }

@@ -127,3 +127,16 @@ CREATE TABLE IF NOT EXISTS run_log (
   summary TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Replies from prospects pulled from Instantly, with a suggested answer
+CREATE TABLE IF NOT EXISTS replies (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email_id TEXT NOT NULL UNIQUE,
+  thread_id TEXT,
+  lead_email TEXT NOT NULL,
+  company TEXT, subject TEXT, body TEXT, received_at TEXT,
+  category TEXT,
+  suggestion TEXT,
+  status TEXT NOT NULL DEFAULT 'new',   -- new | done
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

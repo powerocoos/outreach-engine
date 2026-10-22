@@ -90,6 +90,13 @@ export async function gatherHealth(env, now = new Date(), fetchFn = fetch) {
     } catch { checks.push(c("instantly", "Instantly", "warn", "Could not reach Instantly.")); }
   }
 
+  if (env.INSTANTLY_API_KEY && env.INSTANTLY_CAMPAIGN_ID) {
+    const sync = await env.DB.prepare("SELECT ok, summary FROM run_log WHERE kind='replies_sync' ORDER BY id DESC LIMIT 1").first();
+    if (sync && !sync.ok) checks.push(c("replies", "Reply inbox", "bad", `Could not check for replies: ${sync.summary}.`));
+    else if (!env.ANTHROPIC_API_KEY) checks.push(c("replies", "Reply inbox", "warn", "Suggested answers are off: add the ANTHROPIC_API_KEY secret to the Worker."));
+    else checks.push(c("replies", "Reply inbox", "ok", sync ? `Last check: ${sync.summary}.` : "Waiting for the first check."));
+  }
+
   if (env.META_PAGE_ID && env.META_PAGE_TOKEN) {
     try {
       const r = await fetchFn(`https://graph.facebook.com/${env.META_GRAPH_VERSION || "v23.0"}/${env.META_PAGE_ID}?fields=name`, { headers: { authorization: `Bearer ${env.META_PAGE_TOKEN}` } });

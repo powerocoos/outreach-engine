@@ -59,3 +59,9 @@ Per trade or per town: drafted, approved, rejected %, sent, viewed page, replied
 ## Run health (`/health`)
 
 Each run reports its outcome to `POST /api/runs` (table `run_log`), best effort. The Health page also checks live: the latest GitHub "Outreach run" and "Social drafts" results, GitHub token expiry (warns at 14 days, red at 3), Instantly key, Facebook/Instagram token, and approved social posts that failed 3 times. A red or amber bar appears at the top of every dashboard page when anything is wrong (checked at most every 10 minutes). The 30-minute Worker cron also texts once per new problem if the Twilio secrets are set. A weekday with no run after 2 PM Eastern is flagged red; before then it is amber because the catch-up trigger should still start it. Runs that crash before reporting are caught by the GitHub run check and the "no run today" rule.
+
+## Reply inbox (`/replies`)
+
+The Worker cron (every 30 minutes) and the "Check for replies" button pull received emails for the campaign from Instantly (`GET /emails?email_type=received&campaign_id=...`). Each new reply is stored once (quoted history stripped; out-of-office and bounce notices are filed as done) and Claude drafts a suggested answer from the reply, the email we sent and the verified findings. Nothing is sent from the dashboard: copy the answer into Instantly's inbox or your mail app, then Mark done.
+
+Needs: the Instantly API key to include the `emails:read` scope (the page and Health show a clear message if not), and the Worker secret `ANTHROPIC_API_KEY` (without it replies are listed but no suggestions are drafted). Optional Worker variable `BOOKING_LINK` is included in "interested" answers; otherwise the answer asks for a day and time. Suggested answers are short, never promise results, and use only facts from the original email and findings.
