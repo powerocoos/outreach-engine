@@ -1,4 +1,5 @@
 import { kickOutreach } from "./kick.js";
+import { FUNNEL_PAGE, handleFunnel } from "./funnel.js";
 import { SKIPPED_DDL, DRAFT_MIGRATIONS, REJECT_REASONS, SKIPPED_PAGE, handleSkippedIngest, handleSkippedOverrides, handleSkippedDone, handleSkippedList, handleSkippedAction } from "./skipped.js";
 import { HOT_PAGE, handleHotList, hasOwnerCookie, ownerCookieHeader, isBot, alertTextForView } from "./hot.js";
 import { AUDIT_DDL, handleAuditImagePut, handleAuditPut, handleAuditImageGet, handleAuditView } from "./audit_page.js";
@@ -470,6 +471,10 @@ export default {
     if (pathname === "/review") {
       return new Response(REVIEW_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex", "set-cookie": ownerCookieHeader() } });
     }
+    if (pathname === "/funnel") {
+      return new Response(FUNNEL_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
+    }
+    if (pathname === "/api/funnel" && request.method === "GET") { await ensureSchema(env); return handleFunnel(request, env); }
     if (pathname === "/skipped") {
       return new Response(SKIPPED_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
     }

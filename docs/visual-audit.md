@@ -51,3 +51,7 @@ Shows prospects who opened their private screenshot page, hottest first. Two or 
 - Sites skipped by the polish rule are sent to the dashboard (`push_to_dashboard.py`, table `skipped_leads`) with their polish rating and measured findings. Sites skipped before this feature existed are sent on the next run.
 - **Send anyway** marks a site; at the start of the next run `overrides.py` resets that lead (`status='audited'`, `force_send=1`), so the visual step builds its private page without the polish skip and drafting and Review follow as usual. **Dismiss** hides it; **Undo** reverses either.
 - When you reject a draft on the Review page you can pick a reason (site already looks good, not a good fit, wrong contact, duplicate, other). The counts show at the top of the Skipped page. If many rejections say "site already looks good", lower `POLISH_SKIP_AT`; if you keep choosing Send anyway on skipped sites, raise it.
+
+## Funnel by trade and town (`/funnel`)
+
+Per trade or per town: drafted, approved, rejected %, sent, viewed page, replied, booked, bounced. Groups come from each draft's category and city; sent, replies and bounces come from the Instantly sync, page views from `audit_viewed` touches (scanners ignored). Counts are per business. Groups with fewer than 20 sent are marked "early" because their rates are noise. Drafted/approved/rejected fill in before sending starts; the rest fills in once the campaign is launched and the 30-minute sync runs.
