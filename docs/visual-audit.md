@@ -55,3 +55,7 @@ Shows prospects who opened their private screenshot page, hottest first. Two or 
 ## Funnel by trade and town (`/funnel`)
 
 Per trade or per town: drafted, approved, rejected %, sent, viewed page, replied, booked, bounced. Groups come from each draft's category and city; sent, replies and bounces come from the Instantly sync, page views from `audit_viewed` touches (scanners ignored). Counts are per business. Groups with fewer than 20 sent are marked "early" because their rates are noise. Drafted/approved/rejected fill in before sending starts; the rest fills in once the campaign is launched and the 30-minute sync runs.
+
+## Run health (`/health`)
+
+Each run reports its outcome to `POST /api/runs` (table `run_log`), best effort. The Health page also checks live: the latest GitHub "Outreach run" and "Social drafts" results, GitHub token expiry (warns at 14 days, red at 3), Instantly key, Facebook/Instagram token, and approved social posts that failed 3 times. A red or amber bar appears at the top of every dashboard page when anything is wrong (checked at most every 10 minutes). The 30-minute Worker cron also texts once per new problem if the Twilio secrets are set. A weekday with no run after 2 PM Eastern is flagged red; before then it is amber because the catch-up trigger should still start it. Runs that crash before reporting are caught by the GitHub run check and the "no run today" rule.

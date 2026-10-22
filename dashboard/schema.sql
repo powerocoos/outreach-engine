@@ -118,3 +118,12 @@ CREATE TABLE IF NOT EXISTS skipped_leads (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   decided_at TEXT
 );
+
+-- Pipeline run reports and health alerts (kind: outreach | alert)
+CREATE TABLE IF NOT EXISTS run_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  ok INTEGER NOT NULL DEFAULT 1,
+  summary TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

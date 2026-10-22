@@ -40,13 +40,14 @@ def run(*args):
     return subprocess.run([sys.executable, *args], cwd=HERE).returncode
 
 
-def main():
+def _run_all(chosen_out):
     if run("state.py", "pull") != 0:
         raise SystemExit("Could not load saved state; stopping so nothing is duplicated.")
     failed = []
     try:
         env_override = bool((os.environ.get("TARGET_CATEGORY") or "").strip() and (os.environ.get("TARGET_CITY") or "").strip())
         chosen = load_targets() if env_override else todays_targets(load_targets())
+        chosen_out.extend(chosen)
         print("Targets today:", "; ".join(f"{t['category']} / {t['city']}" for t in chosen), flush=True)
         for t in chosen:
             if run("lead_finder.py", "--category", t["category"], "--city", t["city"],
@@ -62,6 +63,37 @@ def main():
     if failed:
         raise SystemExit("Steps that failed: " + ", ".join(failed))
     print("Run complete. Review drafts on the dashboard.")
+
+
+def report(start, ok, failed, targets):
+    """Tell the dashboard how the run went, so its Health page can warn about failures. Never fails the run."""
+    try:
+        from common import connect, http_request
+        url, token = (os.environ.get("DASHBOARD_URL") or "").rstrip("/"), os.environ.get("API_TOKEN")
+        if not url or not token:
+            return
+        conn = connect()
+        new_leads = conn.execute("SELECT COUNT(*) FROM leads WHERE created_at >= ?", (start,)).fetchone()[0]
+        drafted = conn.execute("SELECT COUNT(*) FROM drafts WHERE created_at >= ?", (start,)).fetchone()[0]
+        http_request(url + "/api/runs", method="POST", headers={"Authorization": f"Bearer {token}"}, body={
+            "ok": ok, "failed": failed, "new_leads": new_leads, "drafted": drafted,
+            "targets": "; ".join(f"{t['category']} / {t['city']}" for t in targets)})
+    except Exception as e:  # noqa: BLE001 - reporting is best effort
+        print("Could not report the run to the dashboard:", e)
+
+
+def main():
+    import datetime
+    start = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    chosen = []
+    try:
+        _run_all(chosen)
+    except SystemExit as e:
+        msg = str(e.code) if e.code not in (None, 0) else ""
+        if msg:
+            report(start, False, [msg], chosen)
+        raise
+    report(start, True, [], chosen)
 
 
 if __name__ == "__main__":
