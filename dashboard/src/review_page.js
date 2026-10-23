@@ -1,12 +1,13 @@
 // Shared look for the review pages.
 export const NAV_CSS = `.top{display:flex;align-items:center;gap:14px;position:relative;padding-bottom:16px;margin-bottom:20px;border-bottom:1px solid var(--line)}.top img{height:44px;width:auto}@media(prefers-color-scheme:dark){.top img{background:#fff;border-radius:8px;padding:4px 8px}}
-.links{display:flex;gap:8px;align-items:center;margin-left:auto}.links a{color:var(--cta);border:1px solid var(--cta);text-decoration:none;border-radius:999px;padding:8px 18px;font-weight:500;font-size:14px;white-space:nowrap}.links a[aria-current=page]{background:var(--cta);color:#fff}
+.links{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;align-items:center;margin-left:auto;min-width:0}.links a{color:var(--cta);border:1px solid var(--cta);text-decoration:none;border-radius:999px;padding:7px 14px;font-weight:500;font-size:14px;white-space:nowrap}.links a[aria-current=page]{background:var(--cta);color:#fff}
 .menu-btn{display:none;margin-left:auto;align-items:center;justify-content:center;width:48px;height:48px;border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:12px;font-size:24px;line-height:1;cursor:pointer}
-@media(max-width:640px){.menu-btn{display:inline-flex}.links{display:none;position:absolute;top:100%;left:0;right:0;margin:8px 0 0;flex-direction:column;align-items:stretch;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:8px;box-shadow:0 8px 24px rgba(17,24,39,.18);z-index:20}.links.open{display:flex}.links a{border:0;border-radius:12px;padding:14px 16px;font-size:16px}.links a:not([aria-current=page]):active{background:var(--soft)}}`;
+.menu-btn{position:relative}.menu-btn.dot::after{content:"";position:absolute;top:8px;right:8px;width:10px;height:10px;border-radius:50%;background:var(--bad)}.nb{display:inline-block;min-width:20px;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--bad);color:#fff;font-size:12px;font-weight:600;line-height:20px;text-align:center}
+@media(max-width:860px){.menu-btn{display:inline-flex}.links{display:none;position:absolute;top:100%;left:0;right:0;margin:8px 0 0;flex-direction:column;align-items:stretch;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:8px;box-shadow:0 8px 24px rgba(17,24,39,.18);z-index:20}.links.open{display:flex}.links a{border:0;border-radius:12px;padding:14px 16px;font-size:16px}.links a:not([aria-current=page]):active{background:var(--soft)}}`;
 export const MOBILE_CSS = `@media(max-width:640px){body{padding:16px 12px}h1{font-size:21px}.card{padding:16px;border-radius:16px}.row{gap:8px}.row button.act{flex:1 1 calc(50% - 8px);min-height:46px;padding:10px 12px}.row button.act.primary{flex:1 1 100%}.bar{gap:8px}.bar .tab{flex:1 1 calc(50% - 8px);min-height:44px;text-align:center}input,textarea,select{font-size:16px}.camp{border-radius:16px}}`;
 export function navHtml(active) {
-  const link = (href, id, text) => `<a href="${href}"${active === id ? ' aria-current="page"' : ""}>${text}</a>`;
-  return `<div class="top"><img src="https://images.squarespace-cdn.com/content/v1/5dc50cc1afeeeb552425247c/d8489d11-b4c0-4699-abf0-75e870088b4f/Ocoos+Web+Consulting+Logo+01+-+smaller-min.png?format=500w" alt="Ocoos Web Consulting"><button class="menu-btn" id="menu-btn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="nav-links">&#9776;</button><nav class="links" id="nav-links">${link("/dashboard", "dashboard", "Dashboard")}${link("/review", "review", "Review drafts")}${link("/replies", "replies", "Replies")}${link("/hot", "hot", "Hot leads")}${link("/skipped", "skipped", "Skipped")}${link("/funnel", "funnel", "Funnel")}${link("/health", "health", "Health")}${link("/social", "social", "Social posts")}</nav></div><div id="hb" style="display:none"></div><script>(function(){fetch("/api/health").then(function(r){return r.json()}).then(function(d){if(d.status==="ok")return;var bad=d.checks.filter(function(c){return c.status===(d.status==="bad"?"bad":"warn")}),b=document.getElementById("hb");b.style.cssText="margin:0 0 16px;padding:10px 14px;border-radius:12px;font-size:14px;color:#fff;background:"+(d.status==="bad"?"#b91c1c":"#b45309");var a=document.createElement("a");a.href="/health";a.style.color="#fff";a.textContent=bad.map(function(c){return c.label+": "+c.detail}).join(" \u00b7 ");b.appendChild(a)}).catch(function(){});var b=document.getElementById("menu-btn"),l=document.getElementById("nav-links");b.onclick=function(){var o=l.classList.toggle("open");b.setAttribute("aria-expanded",String(o))}})()</script>`;
+  const link = (href, id, text) => `<a href="${href}" data-nav="${id}"${active === id ? ' aria-current="page"' : ""}>${text}</a>`;
+  return `<div class="top"><img src="https://images.squarespace-cdn.com/content/v1/5dc50cc1afeeeb552425247c/d8489d11-b4c0-4699-abf0-75e870088b4f/Ocoos+Web+Consulting+Logo+01+-+smaller-min.png?format=500w" alt="Ocoos Web Consulting"><button class="menu-btn" id="menu-btn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="nav-links">&#9776;</button><nav class="links" id="nav-links">${link("/dashboard", "dashboard", "Dashboard")}${link("/review", "review", "Review")}${link("/replies", "replies", "Replies")}${link("/hot", "hot", "Hot leads")}${link("/funnel", "funnel", "Funnel")}${link("/social", "social", "Social")}</nav></div><div id="hb" style="display:none"></div><script>(function(){fetch("/api/summary").then(function(r){return r.json()}).then(function(s){[["review",s.pending],["replies",s.replies],["hot",s.hot]].forEach(function(x){if(!x[1])return;var a=document.querySelector("[data-nav="+x[0]+"]");if(!a)return;var b=document.createElement("span");b.className="nb";b.textContent=x[1];b.setAttribute("aria-label",x[1]+" waiting");a.appendChild(b)});if(s.pending||s.replies||s.hot){var mb=document.getElementById("menu-btn");if(mb)mb.classList.add("dot")}}).catch(function(){});fetch("/api/health").then(function(r){return r.json()}).then(function(d){if(d.status==="ok")return;var bad=d.checks.filter(function(c){return c.status===(d.status==="bad"?"bad":"warn")}),b=document.getElementById("hb");b.style.cssText="margin:0 0 16px;padding:10px 14px;border-radius:12px;font-size:14px;color:#fff;background:"+(d.status==="bad"?"#b91c1c":"#b45309");var a=document.createElement("a");a.href="/health";a.style.color="#fff";a.textContent=bad.map(function(c){return c.label+": "+c.detail}).join(" \u00b7 ");b.appendChild(a)}).catch(function(){});var b=document.getElementById("menu-btn"),l=document.getElementById("nav-links");b.onclick=function(){var o=l.classList.toggle("open");b.setAttribute("aria-expanded",String(o))}})()</script>`;
 }
 export const BASE_CSS = `
 :root{--bg:#fff;--fg:#111827;--mut:#4b5563;--card:#fff;--line:#e5e7eb;--soft:#f3f4f6;--acc:#155387;--cta:#0066cc;--ok:#15803d;--bad:#b91c1c}
@@ -37,21 +38,23 @@ export const FONT_LINKS = `<link rel="preconnect" href="https://fonts.googleapis
 export const REVIEW_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>Review drafts</title>
-${FONT_LINKS}<style>${BASE_CSS}\n.tools select,.tools input[type=search]{width:auto;max-width:100%;padding:6px 10px}.tools .grow{flex:1;min-width:140px}.head{display:flex;gap:12px;align-items:flex-start}.head h2{flex:1}.thumb{width:72px;height:96px;object-fit:cover;object-position:top;border-radius:8px;border:1px solid var(--line);flex:none}.pick{width:20px;height:20px;margin-top:2px;flex:none}.subj{font-weight:500;margin:6px 0}.peek{color:var(--mut);font-size:14px;margin:4px 0}.link{background:none;border:0;color:var(--cta);cursor:pointer;font:inherit;padding:4px 0}.selbar{position:sticky;bottom:8px;z-index:5;background:var(--card);border:1px solid var(--cta);border-radius:12px;padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}</style></head><body>
+${FONT_LINKS}<style>${BASE_CSS}\n@media(max-width:640px){.sub{display:none}}.tools select,.tools input[type=search]{width:auto;max-width:100%;padding:6px 10px}.tools .grow{flex:1;min-width:140px}.head{display:flex;gap:12px;align-items:flex-start}.head h2{flex:1}.thumb{width:72px;height:96px;object-fit:cover;object-position:top;border-radius:8px;border:1px solid var(--line);flex:none}.pick{width:20px;height:20px;margin-top:2px;flex:none}.subj{font-weight:500;margin:6px 0}.peek{color:var(--mut);font-size:14px;margin:4px 0}.link{background:none;border:0;color:var(--cta);cursor:pointer;font:inherit;padding:4px 0}.selbar{position:sticky;bottom:8px;z-index:5;background:var(--card);border:1px solid var(--cta);border-radius:12px;padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}</style></head><body>
 ${navHtml("review")}
 <h1>Review drafts</h1>
-<p class="sub">Edit anything you like, then approve. Approved drafts go into the Instantly CSV with your edits.</p>
+<p class="sub">Read each draft, edit if needed, then approve. Send to Instantly adds approved drafts to the campaign; nothing is emailed until the campaign is launched.</p>
 <div class="camp" id="camp"></div><div class="bar" id="bar"></div><div class="bar tools" id="tools"></div><div id="list"><p class="empty">Loading&hellip;</p></div>
 <script>
-var STATUSES=["pending","approved","rejected","exported"], cur="pending", counts={};
+var STATUSES=["pending","approved","rejected","exported"], cur="pending", counts={}, skippedN=0;
+var TABS={pending:"To review",approved:"Approved",rejected:"Rejected",exported:"Sent to Instantly"};
 function el(t,a,k){var e=document.createElement(t);for(var x in (a||{})){if(x==="text")e.textContent=a[x];else if(x==="cls")e.className=a[x];else e.setAttribute(x,a[x]);}(k||[]).forEach(function(c){e.appendChild(c)});return e}
 function api(path,opts){opts=opts||{};opts.headers=Object.assign({"x-requested-with":"review","content-type":"application/json"},opts.headers||{});return fetch(path,opts)}
 function words(t){return t.trim().split(/\\s+/).filter(Boolean).length}
 function renderBar(){var bar=document.getElementById("bar");bar.textContent="";
-  STATUSES.forEach(function(s){var b=el("button",{cls:"tab",type:"button","aria-pressed":String(s===cur),text:s+" ("+(counts[s]||0)+")"});b.onclick=function(){cur=s;sel={};load()};bar.appendChild(b)});
+  STATUSES.forEach(function(s){var b=el("button",{cls:"tab",type:"button","aria-pressed":String(s===cur),text:TABS[s]+" ("+(counts[s]||0)+")"});b.onclick=function(){cur=s;sel={};load()};bar.appendChild(b)});
+  if(skippedN)bar.appendChild(el("a",{cls:"tab",href:"/skipped",style:"text-decoration:none",text:"Skipped sites ("+skippedN+")"}));
   bar.appendChild(el("span",{cls:"sp"}));
-  var ex=el("button",{cls:"act primary",type:"button",text:"Download CSV ("+(counts.approved||0)+")"});ex.disabled=!(counts.approved>0);
-  ex.onclick=function(){ex.disabled=true;api("/api/export/instantly",{method:"POST",body:"{}"}).then(function(r){var n=r.headers.get("x-exported-count");return r.blob().then(function(b){var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="instantly.csv";a.click();alert("Downloaded "+n+" lead(s). They are now marked exported.");load()})})};
+  var ex=el("button",{cls:"link",type:"button",text:"or download CSV"});ex.disabled=!(counts.approved>0);
+  ex.onclick=function(){ex.disabled=true;api("/api/export/instantly",{method:"POST",body:"{}"}).then(function(r){var n=r.headers.get("x-exported-count");return r.blob().then(function(b){var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="instantly.csv";a.click();alert("Downloaded "+n+" lead(s). They are now under Sent to Instantly.");load()})})};
   var sb=el("button",{cls:"act primary",type:"button",text:"Send to Instantly ("+(counts.approved||0)+")"});sb.disabled=!(counts.approved>0);
   sb.onclick=function(){if(!confirm("Add "+(counts.approved||0)+" approved lead(s) to the Instantly campaign? Nothing is emailed until you launch the campaign in Instantly."))return;sb.disabled=true;api("/api/send/instantly",{method:"POST",body:"{}"}).then(function(r){return r.json()}).then(function(j){if(j.error){alert(j.error)}else{alert("Added "+j.sent+" lead(s) to Instantly."+(j.failed&&j.failed.length?" Failed: "+j.failed.map(function(f){return f.company+" ("+f.error+")"}).join(", "):""))}load()}).catch(function(e){alert("Failed: "+e);load()})};
   bar.appendChild(sb);
@@ -65,7 +68,7 @@ function card(d){
   head.appendChild(el("h2",{text:d.company}));
   if(tk){var ta=el("a",{href:"/a/"+tk,target:"_blank",rel:"noopener noreferrer","aria-label":"Open their private page"},[el("img",{cls:"thumb",src:"/a/"+tk+"/mobile.jpg",loading:"lazy",alt:""})]);head.appendChild(ta)}
   c.appendChild(head);
-  var meta=[d.contact_email,d.city,d.rating?d.rating+"\\u2605 ("+d.review_count+" reviews)":null].filter(Boolean).join(" \\u00b7 ");
+  var meta=[d.contact_email,d.category,d.city,d.rating?d.rating+"\\u2605 ("+d.review_count+" reviews)":null,d.polish?"Polish "+d.polish+"/5":null].filter(Boolean).join(" \\u00b7 ");
   var m=el("div",{cls:"meta"});m.appendChild(document.createTextNode(meta+" \\u00b7 "));
   if(d.website&&/^https?:\\/\\//.test(d.website)){var a=el("a",{href:d.website,target:"_blank",rel:"noopener noreferrer",text:"website"});m.appendChild(a)}
   c.appendChild(m);
@@ -81,15 +84,16 @@ function card(d){
   var e1=el("textarea",{}),e2=el("textarea",{}),e3=el("textarea",{});e1.value=d.email1;e2.value=d.email2;e3.value=d.email3;
   field("Subject",subj).concat(field("Email 1 (day 1)",e1,1),field("Email 2 (day 4)",e2,1),field("Email 3 (day 8)",e3,1)).forEach(function(n){more.appendChild(n)});
   more.style.display=full?"":"none";peek.style.display=full?"none":"";
-  var tg=el("button",{cls:"link",type:"button",text:full?"Hide emails":"Read and edit the emails"});tg.onclick=function(){var open=more.style.display==="none";more.style.display=open?"":"none";peek.style.display=open?"none":"";tg.textContent=open?"Hide emails":"Read and edit the emails"};
+  var tg=el("button",{cls:"link",type:"button",text:full?"Hide emails":"Read and edit the emails"});tg.onclick=function(){var open=more.style.display==="none";more.style.display=open?"":"none";peek.style.display=open?"none":"";tg.textContent=open?"Hide emails":"Read and edit the emails";c.querySelectorAll("[data-save]").forEach(function(x){x.style.display=open?"":"none"})};
   c.appendChild(tg);c.appendChild(more);
   var msg=el("div",{cls:"msg"});
   var why=el("select",{"aria-label":"Reason for rejecting"});[["","Reason for rejecting (optional)"],["polished","Site already looks good"],["fit","Not a good fit"],["contact","Wrong or poor contact"],["dupe","Duplicate or already contacted"],["other","Other"]].forEach(function(o){why.appendChild(el("option",{value:o[0],text:o[1]}))});why.style.cssText="width:auto;max-width:100%";
   function send(action){msg.textContent="";return api("/api/review/"+d.id,{method:"POST",body:JSON.stringify({action:action,reason:why.value,subject:subj.value,email1:e1.value,email2:e2.value,email3:e3.value})}).then(function(r){return r.json().then(function(j){if(!r.ok){msg.textContent=j.error||"Something went wrong";return false}return true})})}
   var row=el("div",{cls:"row"});
   function btn(text,cls,action,reload){var b=el("button",{cls:"act "+cls,type:"button",text:text});b.onclick=function(){b.disabled=true;send(action).then(function(ok){b.disabled=false;if(ok){if(reload)load();else{msg.style.color="var(--ok)";msg.textContent="Saved"}}})};return b}
-  if(d.status==="pending"){row.appendChild(btn("Approve","ok","approve",1));row.appendChild(btn("Save edits","","save",0));row.appendChild(why);row.appendChild(btn("Reject","bad","reject",1))}
-  else if(d.status==="approved"){row.appendChild(btn("Save edits","","save",0));row.appendChild(btn("Move back to pending","","reset",1))}
+  function saveBtn(){var x=btn("Save edits","","save",0);x.setAttribute("data-save","1");x.style.display=full?"":"none";return x}
+  if(d.status==="pending"){row.appendChild(btn("Approve","ok","approve",1));row.appendChild(saveBtn());row.appendChild(why);row.appendChild(btn("Reject","bad","reject",1))}
+  else if(d.status==="approved"){row.appendChild(saveBtn());row.appendChild(btn("Move back to pending","","reset",1))}
   else if(d.status==="rejected"){row.appendChild(btn("Move back to pending","","reset",1))}
   c.appendChild(row);c.appendChild(msg);return c}
 var all=[],sel={},sortKey="old",fTrade="",fTown="",fQ="",full=false;
@@ -109,7 +113,12 @@ function renderTools(){var t=document.getElementById("tools");t.textContent="";
   var tw=el("select",{"aria-label":"Town"});opts(tw,uniq("city"),"All towns");tw.value=fTown;tw.onchange=function(){fTown=tw.value;renderList()};
   var q=el("input",{type:"search",placeholder:"Search company or email",cls:"grow","aria-label":"Search"});q.value=fQ;q.oninput=function(){fQ=q.value;renderList()};
   var fu=el("label",{style:"display:flex;gap:6px;align-items:center;margin:0;text-transform:none;letter-spacing:0;font-size:13px"},[]);var fc=el("input",{type:"checkbox"});fc.style.width="auto";fc.checked=full;fc.onchange=function(){full=fc.checked;renderList()};fu.appendChild(fc);fu.appendChild(document.createTextNode("Show full emails"));
-  [so,tr,tw,q,fu].forEach(function(n){t.appendChild(n)})}
+  var narrow=window.matchMedia&&matchMedia("(max-width:640px)").matches;
+  if(!narrow){[so,tr,tw,q,fu].forEach(function(n){t.appendChild(n)});return}
+  var on=!!(fTrade||fTown||fQ||sortKey!=="old"||full),box=el("div",{style:"display:"+(on?"flex":"none")+";flex-wrap:wrap;gap:8px;width:100%"});
+  [so,tr,tw,q,fu].forEach(function(n){box.appendChild(n)});
+  var tb=el("button",{cls:"act",type:"button",text:on?"Hide sort and filter":"Sort and filter"});tb.onclick=function(){var o=box.style.display==="none";box.style.display=o?"flex":"none";tb.textContent=o?"Hide sort and filter":"Sort and filter"};
+  t.appendChild(tb);t.appendChild(box)}
 function renderSel(){var bar=document.getElementById("selbar");if(bar)bar.remove();
   var ids=Object.keys(sel);if(!ids.length)return;
   bar=el("div",{cls:"selbar",id:"selbar"});bar.appendChild(el("b",{text:ids.length+" selected"}));
@@ -129,7 +138,7 @@ function renderList(){var list=document.getElementById("list");list.textContent=
   sa.onchange=function(){v.forEach(function(d){if(sa.checked)sel[d.id]=1;else delete sel[d.id]});renderList()};
   top.appendChild(sa);top.appendChild(el("span",{cls:"meta",text:"Select all "+v.length+" shown"}));list.appendChild(top);
   v.forEach(function(d){list.appendChild(card(d))});renderSel()}
-function load(){api("/api/review?status="+cur).then(function(r){return r.json()}).then(function(j){counts=j.counts;all=j.drafts;
+function load(){api("/api/review?status="+cur).then(function(r){return r.json()}).then(function(j){counts=j.counts;skippedN=j.skipped_waiting||0;all=j.drafts;
   var keep={};all.forEach(function(d){if(sel[d.id])keep[d.id]=1});sel=keep;renderBar();renderTools();renderList()}).catch(function(e){document.getElementById("list").textContent="Failed to load: "+e})}
 function loadCamp(){var box=document.getElementById("camp");api("/api/campaign").then(function(r){return r.json()}).then(function(c){box.textContent="";
   if(!c.configured){box.textContent="Instantly is not connected yet.";return}

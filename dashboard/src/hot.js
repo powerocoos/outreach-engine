@@ -36,7 +36,7 @@ export function alertTextForView(company, count) {
     : `${company} just opened their audit page.`;
 }
 
-export async function handleHotList(env) {
+export async function hotLeads(env) {
   const rows = (await env.DB.prepare(
     `SELECT t.contact_email e, t.raw ua, t.created_at ts
        FROM touches t WHERE t.event='audit_viewed' ORDER BY t.created_at ASC, t.id ASC`).all()).results;
@@ -66,6 +66,11 @@ export async function handleHotList(env) {
     });
   }
   out.sort((a, b) => (a.heat === b.heat ? String(b.last).localeCompare(String(a.last)) : a.heat === "hot" ? -1 : 1));
+  return out;
+}
+
+export async function handleHotList(env) {
+  const out = await hotLeads(env);
   return new Response(JSON.stringify({ leads: out }), { headers: { "content-type": "application/json", "cache-control": "no-store" } });
 }
 

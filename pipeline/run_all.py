@@ -23,15 +23,35 @@ def load_targets(env=os.environ, path=TARGETS):
     return json.loads(Path(path).read_text())
 
 
+def interleave(targets):
+    """Reorder so trades alternate (HVAC Gainesville, plumber Gainesville, ...), so each run covers
+    several trades instead of working one trade for days at a time."""
+    groups = {}
+    for t in targets:
+        groups.setdefault(t["category"], []).append(t)
+    out = []
+    for i in range(max((len(g) for g in groups.values()), default=0)):
+        out += [g[i] for g in groups.values() if i < len(g)]
+    return out
+
+
+def weekday_index(day):
+    """Count of weekdays before `day`, so consecutive weekday runs take consecutive slices and one
+    pass over the list takes exactly len/per_run weekdays (the calendar day left gaps on weekends)."""
+    n = day.toordinal() - 1  # ordinal 1 (Jan 1, year 1) was a Monday
+    return (n // 7) * 5 + min(n % 7, 5)
+
+
 def todays_targets(targets, today=None, per_run=None):
     """A rotating slice of the target list, so a long list is worked through over several weekdays
     instead of making one run too long. Overrides (one-off category/city) are never sliced."""
     import datetime
-    per_run = per_run or int(os.environ.get("TARGETS_PER_RUN") or 5)
+    per_run = per_run or int(os.environ.get("TARGETS_PER_RUN") or 2)
     if len(targets) <= per_run:
         return targets
+    targets = interleave(targets)
     today = today or datetime.date.today()
-    start = (today.toordinal() * per_run) % len(targets)
+    start = (weekday_index(today) * per_run) % len(targets)
     return [targets[(start + i) % len(targets)] for i in range(per_run)]
 
 

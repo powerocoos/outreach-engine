@@ -33,7 +33,7 @@ GitHub's schedule is best-effort (often hours late, sometimes skipped). Two safe
 ## Finding enough leads
 
 - `config/targets.json` lists 7 trades x 13 towns (HVAC, plumber, electrician, roofing, pest control, landscaping, pressure
-  washing). Each weekday run works through a rotating slice of 5 targets (`TARGETS_PER_RUN`), up to 20 results each, so the whole
+  washing). Each weekday run works through a rotating slice of 2 targets (`TARGETS_PER_RUN`, lowered from 5 on 2026-10-23 so drafting does not outrun Instantly's daily send limit; raise it once the limit goes up). Trades are interleaved so each run covers two different trades, and the slice advances by one each weekday, so a full pass takes 46 weekdays with no repeats, up to 20 results each, so the whole
   list is covered in a few weeks and a run stays well under the 45-minute limit. A manual run with a category and city ignores the rotation.
 - A site where no email was found is not crawled again for 60 days (`email_checked_at`, `RECHECK_DAYS` in `lead_finder.py`).
 - Audits and screenshots are only done for leads that have an email address.
@@ -71,3 +71,10 @@ Needs: the Instantly API key to include the `emails:read` scope (the page and He
 - Each draft shows a thumbnail of the phone screenshot (from its private page; click to open the page) and starts collapsed: first two findings and the subject. "Read and edit the emails" opens the full text; "Show full emails" in the toolbar opens every card.
 - Sort (oldest, newest, slowest mobile score, best reviews, company, trade, town), filter by trade or town, and search by company or email. Filtering and sorting happen in the browser over the loaded list (up to 300 drafts per tab).
 - Tick drafts (or "Select all shown") and use the bar at the bottom: Approve selected, Reject selected (optional reason), or Move back to pending on other tabs. `POST /api/review/bulk` applies the same checks as single approvals; any draft that fails (word limits, bounced contact) is listed and left unchanged while the rest go through. At most 100 per call.
+
+## Dashboard layout (2026-10-23)
+
+- Menu: Dashboard, Review, Replies, Hot leads, Funnel, Social. Red count badges on Review (drafts to review), Replies (to answer) and Hot leads (hot, not yet replied); on phones a red dot on the menu button. Skipped sites is a tab on Review (`/skipped`), Health is linked from the home page (`/health`). Below 860px the menu folds into the menu button.
+- Home page ("Today"): cards for what needs you (`GET /api/summary`), a Status panel (daily run, Instantly campaign, next social post, any failing check) and the results tiles once sending starts.
+- Review: tabs To review / Approved / Rejected / Sent to Instantly; each card shows trade, town and the 1-5 polish rating; Save edits appears only with the emails open; on phones sort and filter sit behind one button.
+- Funnel: Rejected % is the share of reviewed drafts you rejected (drafts still waiting are not counted).

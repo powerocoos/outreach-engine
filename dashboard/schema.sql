@@ -57,7 +57,8 @@ CREATE TABLE IF NOT EXISTS drafts (
   rating REAL,
   review_count INTEGER,
   findings TEXT,                 -- JSON array of verified findings
-  reject_reason TEXT,            -- why a draft was rejected (polished | fit | contact | dupe | other)
+  reject_reason TEXT,
+  polish INTEGER,                -- 1-5 look-and-feel rating from the screenshots            -- why a draft was rejected (polished | fit | contact | dupe | other)
   subject TEXT NOT NULL,
   email1 TEXT NOT NULL,
   email2 TEXT NOT NULL,

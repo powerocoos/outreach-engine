@@ -23,7 +23,7 @@ export const SKIPPED_DDL = [
     findings TEXT, status TEXT NOT NULL DEFAULT 'skipped', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     decided_at TEXT)`,
 ];
-export const DRAFT_MIGRATIONS = ["ALTER TABLE drafts ADD COLUMN reject_reason TEXT"];
+export const DRAFT_MIGRATIONS = ["ALTER TABLE drafts ADD COLUMN reject_reason TEXT", "ALTER TABLE drafts ADD COLUMN polish INTEGER"];
 
 const str = (v, n) => (typeof v === "string" ? v.slice(0, n) : null);
 
@@ -93,7 +93,7 @@ ${FONT_LINKS}<style>${BASE_CSS}
 .note{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:0 0 14px;font-size:14px}
 .pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;color:#fff;background:var(--cta);margin-left:8px;vertical-align:middle}
 .pill.send{background:var(--ok)}.pill.dim{background:var(--mut)}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}</style></head><body>
-${navHtml("skipped")}
+${navHtml("review")}
 <h1>Skipped leads</h1>
 <p class="sub">Sites the pipeline judged well kept, so no email was drafted. If one looks worth contacting, choose Send anyway and the next run drafts it for your review.</p>
 <div class="note" id="why"></div><div id="list"><p class="empty">Loading&hellip;</p></div>

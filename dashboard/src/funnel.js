@@ -10,7 +10,7 @@ export function buildFunnel(drafts, touches, by) {
   const group = new Map();
   const ofEmail = new Map();
   const row = (name) => {
-    if (!group.has(name)) group.set(name, { name, drafted: 0, approved: 0, sent: new Set(), viewed: new Set(), replied: new Set(), booked: new Set(), bounced: new Set() });
+    if (!group.has(name)) group.set(name, { name, drafted: 0, approved: 0, rejected: 0, sent: new Set(), viewed: new Set(), replied: new Set(), booked: new Set(), bounced: new Set() });
     return group.get(name);
   };
   for (const d of drafts) {
@@ -18,6 +18,7 @@ export function buildFunnel(drafts, touches, by) {
     ofEmail.set(d.contact_email, g);
     g.drafted++;
     if (d.status === "approved" || d.status === "exported") g.approved++;
+    else if (d.status === "rejected") g.rejected++;
   }
   const field = { sent: "sent", replied: "replied", booked: "booked", bounced: "bounced", audit_viewed: "viewed" };
   for (const t of touches) {
@@ -32,7 +33,8 @@ export function buildFunnel(drafts, touches, by) {
     name: g.name, drafted: g.drafted, approved: g.approved, sent: g.sent.size, viewed: g.viewed.size,
     replied: g.replied.size, booked: g.booked.size, bounced: g.bounced.size,
     view_rate: pct(g.viewed.size, g.sent.size), reply_rate: pct(g.replied.size, g.sent.size),
-    reject_rate: pct(g.drafted - g.approved, g.drafted),
+    // Share of reviewed drafts you rejected; drafts still waiting for review do not count either way.
+    rejected: g.rejected, reject_rate: pct(g.rejected, g.approved + g.rejected),
     enough: g.sent.size >= MIN_SAMPLE,
   })).sort((a, b) => b.sent - a.sent || b.drafted - a.drafted);
 }

@@ -135,7 +135,7 @@ export const HEALTH_PAGE = `<!doctype html><html lang="en"><head><meta charset="
 <title>Health</title>
 ${FONT_LINKS}<style>${BASE_CSS}
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:var(--ok)}.dot.warn{background:#d97706}.dot.bad{background:var(--bad)}</style></head><body>
-${navHtml("health")}
+${navHtml("dashboard")}
 <h1>Run health</h1>
 <p class="sub">Whether the daily run happened, and whether the keys behind it still work. A red or amber bar shows at the top of every dashboard page when something needs attention.</p>
 <div class="bar"><button class="act" id="re" type="button">Check again</button></div><div id="list"><p class="empty">Checking&hellip;</p></div>

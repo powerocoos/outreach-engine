@@ -16,7 +16,7 @@ def collect(conn):
     rows = conn.execute(
         """SELECT l.id lead_id, l.company, l.email AS contact_email, l.website, l.city, l.category,
                   l.rating, l.review_count, a.mobile_score, a.findings_json,
-                  v.findings_json AS visual_json, v.page_url,
+                  v.findings_json AS visual_json, v.page_url, v.polish,
                   d.angle, d.subject, d.email1, d.email2, d.email3
            FROM leads l JOIN drafts d ON d.lead_id=l.id JOIN audits a ON a.lead_id=l.id
            LEFT JOIN visual_audits v ON v.lead_id=l.id

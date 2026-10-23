@@ -248,6 +248,23 @@ class RunAllTests(unittest.TestCase):
             seen |= {t["city"] for t in run_all.todays_targets(targets, day + datetime.timedelta(days=n), 5)}
         self.assertEqual(len(seen), 13)
 
+    def test_weekday_runs_cover_the_real_target_list_and_mix_trades(self):
+        import datetime
+        import json
+        import run_all
+        targets = json.loads(run_all.TARGETS.read_text())
+        day, seen, runs = datetime.date(2026, 10, 26), set(), 0
+        while runs < len(targets) // 2 + 1:
+            if day.weekday() < 5:
+                got = run_all.todays_targets(targets, day, 2)
+                self.assertEqual(len({t["category"] for t in got}), 2)  # two different trades per run
+                seen |= {(t["category"], t["city"]) for t in got}
+                runs += 1
+            day += datetime.timedelta(days=1)
+        self.assertEqual(len(seen), len(targets))  # every target within one pass of weekdays, no repeats
+        idx = [run_all.weekday_index(datetime.date(2026, 10, d)) for d in (23, 26, 27)]  # Fri, Mon, Tue
+        self.assertEqual((idx[1] - idx[0], idx[2] - idx[1]), (1, 1))
+
     def test_sites_without_email_are_not_recrawled_every_run(self):
         import lead_finder
         conn = connect()

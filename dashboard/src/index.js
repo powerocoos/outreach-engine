@@ -3,7 +3,7 @@ import { REPLIES_DDL, REPLIES_PAGE, syncReplies, handleRepliesList, handleReplie
 import { HEALTH_DDL, HEALTH_PAGE, handleRunReport, handleHealth, alertOnProblems } from "./health.js";
 import { FUNNEL_PAGE, handleFunnel } from "./funnel.js";
 import { SKIPPED_DDL, DRAFT_MIGRATIONS, REJECT_REASONS, SKIPPED_PAGE, handleSkippedIngest, handleSkippedOverrides, handleSkippedDone, handleSkippedList, handleSkippedAction } from "./skipped.js";
-import { HOT_PAGE, handleHotList, hasOwnerCookie, ownerCookieHeader, isBot, alertTextForView } from "./hot.js";
+import { HOT_PAGE, handleHotList, hotLeads, hasOwnerCookie, ownerCookieHeader, isBot, alertTextForView } from "./hot.js";
 import { AUDIT_DDL, handleAuditImagePut, handleAuditPut, handleAuditImageGet, handleAuditView } from "./audit_page.js";
 import { normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
 import { REVIEW_PAGE, NAV_CSS, MOBILE_CSS, navHtml } from "./review_page.js";
@@ -172,11 +172,12 @@ async function handleDraftImport(request, env) {
     if (!d.contact_email || !d.company || draftProblems(d).length) { skipped++; continue; }
     const r = await env.DB.prepare(
       `INSERT OR IGNORE INTO drafts (contact_email, company, website, city, category, angle, mobile_score,
-         rating, review_count, findings, subject, email1, email2, email3) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+         rating, review_count, findings, subject, email1, email2, email3, polish) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(String(d.contact_email).toLowerCase(), d.company, d.website ?? null, d.city ?? null, d.category ?? null,
            d.angle ?? null, d.mobile_score ?? null, d.rating ?? null, d.review_count ?? null,
            JSON.stringify(Array.isArray(d.findings) ? d.findings : []),
-           d.subject, d.email1, d.email2, d.email3).run();
+           d.subject, d.email1, d.email2, d.email3,
+           Number.isInteger(d.polish) && d.polish >= 1 && d.polish <= 5 ? d.polish : null).run();
     if (r.meta.changes) added++; else skipped++;
   }
   return json({ ok: true, added, skipped });
@@ -206,8 +207,9 @@ async function handleReviewList(request, env) {
   }
   const rows = (await env.DB.prepare(
     "SELECT * FROM drafts WHERE status=? ORDER BY id LIMIT 300").bind(status).all()).results;
+  const skippedWaiting = (await env.DB.prepare("SELECT COUNT(*) n FROM skipped_leads WHERE status='skipped'").first())?.n || 0;
   const drafts = rows.map((r) => ({ ...r, findings: safeJson(r.findings) }));
-  return json({ counts, drafts });
+  return json({ counts, drafts, skipped_waiting: skippedWaiting });
 }
 
 function safeJson(t) { try { return JSON.parse(t) ?? []; } catch { return []; } }
@@ -456,6 +458,22 @@ async function stats(env) {
   };
 }
 
+// What needs attention right now: feeds the home page "Needs you" cards and the menu badges.
+async function summary(env) {
+  const n = async (sql) => (await env.DB.prepare(sql).first())?.n || 0;
+  const [pending, approved, replies, skipped, social] = await Promise.all([
+    n("SELECT COUNT(*) n FROM drafts WHERE status='pending'"),
+    n("SELECT COUNT(*) n FROM drafts WHERE status='approved'"),
+    n("SELECT COUNT(*) n FROM replies WHERE status='new'"),
+    n("SELECT COUNT(*) n FROM skipped_leads WHERE status='skipped'"),
+    n("SELECT COUNT(*) n FROM social_posts WHERE status='pending'"),
+  ]);
+  const hot = (await hotLeads(env)).filter((l) => l.heat === "hot" && !l.replied).length;
+  const next = await env.DB.prepare("SELECT title, scheduled_at FROM social_posts WHERE status='approved' AND scheduled_at IS NOT NULL ORDER BY scheduled_at LIMIT 1").first();
+  const run = await env.DB.prepare("SELECT ok, summary, created_at FROM run_log WHERE kind='outreach' ORDER BY id DESC LIMIT 1").first();
+  return { pending, approved, replies, skipped, social, hot, nextPost: next || null, lastRun: run || null };
+}
+
 export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(syncInstantly(env, ctx).catch(() => {}));
@@ -498,6 +516,7 @@ export default {
 
     if (!basicAuthOk(request, env)) return challenge();
     if (pathname === "/api/stats") return json(await stats(env));
+    if (pathname === "/api/summary" && request.method === "GET") { await ensureSchema(env); return json(await summary(env)); }
     if (pathname === "/review") {
       return new Response(REVIEW_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex", "set-cookie": ownerCookieHeader() } });
     }
@@ -554,7 +573,7 @@ export default {
 
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
-<title>Outreach Dashboard</title>
+<title>Ocoos dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#fff;--fg:#111827;--mut:#4b5563;--card:#fff;--line:#e5e7eb;--soft:#f3f4f6;--acc:#155387;--cta:#0066cc;--ok:#15803d;--bad:#b91c1c}
@@ -565,19 +584,46 @@ h1{font-size:24px;font-weight:700;color:var(--acc);margin:0 0 4px}h2{font-size:1
 .tile{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 1px 3px rgba(17,24,39,.06);padding:12px 14px}
 .tile b{display:block;font-size:28px;font-weight:700;color:var(--acc)}.tile span{color:var(--mut);font-size:13px}
 table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{color:var(--mut);font-weight:600;font-size:13px}
+.sub{color:var(--mut);margin:0 0 16px}.mut{color:var(--mut);font-size:14px}
+a.tile{text-decoration:none;color:inherit;border-color:var(--cta)}a.tile:hover{background:var(--soft)}a.tile.calm{border-color:var(--line)}a.tile.calm b{color:var(--ok)}
+.needs{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.status{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:6px 16px 10px}.srow{display:grid;grid-template-columns:160px 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}.srow span{color:var(--mut);font-size:13px;font-weight:500}.srow p{margin:0;font-size:14px}
+@media(max-width:640px){.srow{grid-template-columns:1fr;gap:2px}}
 ${NAV_CSS}${MOBILE_CSS}@media(max-width:640px){td,th{word-break:break-word;padding:8px 4px}}a{color:var(--cta)}</style></head><body>
 ${navHtml("dashboard")}
-<h1>Outreach dashboard</h1><div id="app">Loading…</div>
+<h1>Today</h1><p class="sub" id="today"></p>
+<div class="grid needs" id="needs"></div>
+<h2>Status</h2><div id="status" class="status"><p class="mut">Checking&hellip;</p></div>
+<div id="app"></div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const tile=(n,l)=>'<div class="tile"><b>'+esc(n)+'</b><span>'+esc(l)+'</span></div>';
 const table=(h,rows)=>'<table><tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr>'+(rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="9">No data yet</td></tr>')+'</table>';
+const when=s=>{const d=new Date(String(s).replace(' ','T')+(String(s).length===19?'Z':''));return isNaN(d)?String(s||''):d.toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})};
+document.getElementById('today').textContent=new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'});
+fetch('/api/summary').then(r=>r.json()).then(s=>{
+  const cards=[[s.pending,'Drafts to review','/review'],[s.replies,'Replies to answer','/replies'],[s.hot,'Hot leads to call','/hot'],[s.approved,'Approved, not yet sent to Instantly','/review'],[s.skipped,'Skipped sites to check','/skipped'],[s.social,'Social posts to approve','/social']];
+  const open=cards.filter(c=>c[0]>0);
+  document.getElementById('needs').innerHTML=(open.length?open:[[0,'Nothing waiting on you','/review']]).map(c=>'<a class="tile act'+(c[0]?'':' calm')+'" href="'+c[2]+'"><b>'+esc(c[0]||'\u2713')+'</b><span>'+esc(c[1])+'</span></a>').join('');
+  const rows=[];
+  if(s.nextPost)rows.push(['Next social post',when(s.nextPost.scheduled_at)+': '+s.nextPost.title]);
+  window.__sum=rows;statusDraw();
+}).catch(()=>{document.getElementById('needs').textContent='Could not load what needs attention.'});
+let health=null,camp=null;
+function statusDraw(){const rows=(window.__sum||[]).slice();
+  if(camp)rows.unshift(['Instantly campaign',camp.configured?(camp.error?('unavailable: '+camp.error):(camp.label+(camp.daily_limit?', up to '+camp.daily_limit+' emails a day':''))):'not connected']);
+  if(health){const run=health.checks.find(c=>c.id==='run');if(run)rows.unshift(['Daily run',run.detail]);
+    const bad=health.checks.filter(c=>c.status!=='ok'&&c.id!=='run');
+    rows.push(['Checks',bad.length?bad.map(c=>c.label+': '+c.detail).join(' \u00b7 '):'Everything connected and working']);}
+  document.getElementById('status').innerHTML=rows.map(r=>'<div class="srow"><span>'+esc(r[0])+'</span><p>'+esc(r[1])+'</p></div>').join('')+'<p class="mut"><a href="/health">All health checks</a> \u00b7 <a href="/skipped">Skipped sites</a></p>';}
+fetch('/api/health').then(r=>r.json()).then(h=>{health=h;statusDraw()}).catch(()=>{});
+fetch('/api/campaign').then(r=>r.json()).then(c=>{camp=c;statusDraw()}).catch(()=>{});
 fetch('/api/stats').then(r=>r.json()).then(d=>{const t=d.totals,r=d.rates;
 document.getElementById('app').innerHTML=
-'<div class="grid">'+tile(t.leads,'Leads')+tile(t.sent,'Contacted')+tile(t.videoViews,'Video views')+tile(t.replied,'Replies')+tile(r.reply+'%','Reply rate')+tile(t.booked,'Calls booked')+tile(t.won,'Won')+tile(r.bounce+'%','Bounce rate')+'</div>'+
-'<h2>Hook performance</h2>'+table(['Hook angle','Contacted','Replies'],d.byAngle.map(a=>[a.angle||'—',a.sent,a.replies]))+
-'<h2>By city</h2>'+table(['City','Leads','Responded'],d.byCity.map(c=>[c.city||'—',c.leads,c.responded||0]))+
-'<div id="ga"></div><h2>Recent activity</h2>'+table(['When','Event','Who'],d.recent.map(e=>[e.created_at,e.event,e.who]));
+'<h2>Results</h2>'+(t.sent?'':'<p class="mut">Nothing sent yet. These fill in once the campaign is launched.</p>')+
+'<div class="grid">'+tile(t.sent,'Contacted')+tile(t.replied,'Replies')+tile(r.reply+'%','Reply rate')+tile(t.booked,'Calls booked')+tile(t.won,'Won')+tile(r.bounce+'%','Bounce rate')+'</div>'+
+(t.sent?'<h2>Hook performance</h2>'+table(['Hook angle','Contacted','Replies'],d.byAngle.map(a=>[a.angle||'\u2014',a.sent,a.replies])):'')+
+'<div id="ga"></div><h2>Recent activity</h2>'+table(['When','Event','Who'],d.recent.map(e=>[when(e.created_at),e.event,e.who]));
 loadGa();
 }).catch(e=>{document.getElementById('app').textContent='Failed to load: '+e});
 function spark(v){if(!v.length)return '';const m=Math.max(...v,1),w=300,h=48,st=w/Math.max(v.length-1,1);return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none" role="img" aria-label="Daily sessions"><polyline fill="none" stroke="var(--cta)" stroke-width="2" points="'+v.map((x,i)=>(i*st).toFixed(1)+','+(h-3-(x/m)*(h-6)).toFixed(1)).join(' ')+'"/></svg>'}

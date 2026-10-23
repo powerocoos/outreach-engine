@@ -20,6 +20,9 @@ test("funnel counts businesses per trade and ignores scanner views", () => {
   assert.deepEqual([plumber.drafted, plumber.approved, plumber.sent, plumber.viewed, plumber.replied], [2, 1, 1, 1, 1]);
   assert.equal(plumber.reply_rate, 100);
   assert.equal(plumber.reject_rate, 50);
+  const roof = trade.find((r) => r.name === "roofing");
+  assert.equal(roof.reject_rate, 0); // approved only
+  assert.equal(trade.find((r) => r.name === "Unknown").reject_rate, null); // pending only: not rejected
   assert.equal(plumber.enough, false);
   assert.equal(trade[0].name, "plumber"); // most sent first
   assert.ok(trade.find((r) => r.name === "Unknown"));

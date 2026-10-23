@@ -62,3 +62,25 @@ test("reject reasons are stored and counted", async () => {
   await post(e, `/api/review/${pending[0].id}`, { action: "reset" }, basic);
   assert.equal((await (await call(e, "/api/skipped", { headers: basic })).json()).reasons.polished, undefined);
 });
+
+test("drafts keep the polish rating from the pipeline", async () => {
+  const e = mk();
+  const d = (n, polish) => ({ company: "C" + n, contact_email: `p${n}@x.com`, subject: "s", email1: "a", email2: "b", email3: "c", polish });
+  await post(e, "/api/drafts", { drafts: [d(1, 3), d(2, 9), d(3, undefined)] }, bearer);
+  const rows = (await (await call(e, "/api/review?status=pending", { headers: basic })).json()).drafts;
+  assert.deepEqual(rows.map((r) => r.polish), [3, null, null]);
+});
+
+test("summary counts what needs attention", async () => {
+  const e = mk();
+  const d = (n) => ({ company: "C" + n, contact_email: `s${n}@x.com`, subject: "s", email1: "a", email2: "b", email3: "c" });
+  await post(e, "/api/drafts", { drafts: [d(1), d(2), d(3)] }, bearer);
+  await post(e, "/api/skipped", { skipped: [{ website: "a.com", company: "A" }] }, bearer);
+  const ids = (await (await call(e, "/api/review?status=pending", { headers: basic })).json()).drafts.map((x) => x.id);
+  await post(e, `/api/review/${ids[0]}`, { action: "approve" }, basic);
+  assert.equal((await call(e, "/api/summary")).status, 401);
+  const s = await (await call(e, "/api/summary", { headers: basic })).json();
+  assert.deepEqual([s.pending, s.approved, s.skipped, s.replies, s.hot, s.social], [2, 1, 1, 0, 0, 0]);
+  const list = await (await call(e, "/api/review?status=pending", { headers: basic })).json();
+  assert.equal(list.skipped_waiting, 1);
+});
