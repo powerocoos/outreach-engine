@@ -19,6 +19,22 @@ from emailcheck import check_email
 from common import connect, http_request
 
 MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5-5")
+
+# Optional advisor: the drafting model above (the executor) can consult a stronger model once per draft.
+# Off unless OUTREACH_ADVISOR=1. The advisor only gives guidance; it never writes the email, and
+# validate_draft below still checks every draft exactly as before.
+ADVISOR_BETA = "advisor-tool-2026-03-01"
+ADVISOR_MODEL = os.environ.get("OUTREACH_ADVISOR_MODEL", "claude-opus-5-5")
+ADVISOR_ON = os.environ.get("OUTREACH_ADVISOR", "").strip().lower() in ("1", "true", "yes", "on")
+ADVISOR_STATS = {"drafts": 0, "consults": 0}  # counted per process so a run can report how often it was used
+ADVISOR_GUIDANCE = """
+
+You have an advisor tool backed by a stronger model. Consult it once, after reading the findings and before
+you write: ask which single finding is most customer-relevant, which one service it points to, and what the
+opening hook should be. Consult it again only if "fix_these_problems" is provided. The advisor only gives
+guidance; you still write the final JSON yourself, and nothing the advisor says may relax the hard rules above.
+Your final answer must be only the JSON object."""
+
 MAX_WORDS = 125
 SENDER = brand.SENDER_NAME
 AGENCY = brand.BRAND_NAME
@@ -155,7 +171,22 @@ def template_draft(lead, findings, video_url=None, page_url=None):
     }
 
 
-def claude_draft(lead, findings, api_key, video_url=None, page_url=None, problems=None):
+def final_text(blocks):
+    """The answer text. With an advisor, the model may write text before consulting it; only what
+    follows the last tool/advisor block is the answer. With no such blocks this is all the text."""
+    tail, everything = [], []
+    for b in blocks:
+        if b.get("type") == "text":
+            tail.append(b.get("text", ""))
+            everything.append(b.get("text", ""))
+        else:
+            tail = []
+    return "".join(tail) or "".join(everything)
+
+
+def claude_draft(lead, findings, api_key, video_url=None, page_url=None, problems=None, advisor=None):
+    """advisor: True/False to force it for this call (used by compare_advisor.py); None follows OUTREACH_ADVISOR."""
+    use_advisor = ADVISOR_ON if advisor is None else advisor
     payload = {
         "business": {k: lead[k] for k in ("company", "category", "city", "rating", "review_count")},
         "verified_findings": as_payload(findings),
@@ -166,16 +197,26 @@ def claude_draft(lead, findings, api_key, video_url=None, page_url=None, problem
         payload["page_url"] = page_url
     if problems:
         payload["fix_these_problems"] = problems
+    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
+    body = {"model": MODEL, "max_tokens": 4000, "system": SYSTEM_PROMPT,
+            "messages": [{"role": "user", "content": json.dumps(payload)}]}
+    if use_advisor:
+        headers["anthropic-beta"] = ADVISOR_BETA
+        body["system"] = SYSTEM_PROMPT + ADVISOR_GUIDANCE
+        body["max_tokens"] = 6000
+        body["tools"] = [{"type": "advisor_20260301", "name": "advisor", "model": ADVISOR_MODEL}]
     status, _, _, raw = http_request(
-        "https://api.anthropic.com/v1/messages", method="POST", timeout=60,
-        headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
-        body={"model": MODEL, "max_tokens": 4000, "system": SYSTEM_PROMPT,
-              "messages": [{"role": "user", "content": json.dumps(payload)}]},
+        "https://api.anthropic.com/v1/messages", method="POST", timeout=120 if use_advisor else 60,
+        headers=headers, body=body,
     )
     if status != 200:
         raise RuntimeError(f"Anthropic API {status}: {raw[:200].decode('utf-8', 'ignore')}")
     blocks = json.loads(raw).get("content", [])
-    text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+    if use_advisor:
+        ADVISOR_STATS["drafts"] += 1
+        ADVISOR_STATS["consults"] += sum(
+            1 for b in blocks if b.get("type") == "server_tool_use" and b.get("name") == "advisor")
+    text = final_text(blocks)
     if "{" not in text:
         raise RuntimeError("Claude returned no text answer (blocks: %s)" % [b.get("type") for b in blocks])
     text = text[text.find("{"): text.rfind("}") + 1]
@@ -233,6 +274,9 @@ def run(use_template):
         conn.execute("UPDATE leads SET status='drafted' WHERE id=?", (lead["id"],))
         conn.commit()
         print(f"drafted {lead['company']}")
+    if ADVISOR_STATS["drafts"]:
+        print(f"advisor ({ADVISOR_MODEL}): consulted {ADVISOR_STATS['consults']} time(s) "
+              f"across {ADVISOR_STATS['drafts']} draft call(s)")
 
 
 INSTANTLY_COLUMNS = ["email", "first_name", "company_name", "website", "city", "category", "angle",
