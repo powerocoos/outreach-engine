@@ -160,5 +160,21 @@ class ImageTests(unittest.TestCase):
         self.assertEqual(social_image.card_token("u"), social_image.card_token("u"))
         self.assertNotEqual(social_image.card_token("u"), social_image.card_token("v"))
 
+
+
+class CardVariantTests(unittest.TestCase):
+    def test_variant_is_stable_and_in_range(self):
+        import social_image
+        v = social_image.variant_for("Website Tip: Add a call button")
+        self.assertEqual(v, social_image.variant_for("Website Tip: Add a call button"))
+        self.assertIn(v, range(len(social_image.PALETTES)))
+
+    def test_every_variant_renders_a_jpeg(self):
+        import social_image
+        for i in range(len(social_image.PALETTES)):
+            data = social_image.render_card("Why speed matters", None, "WEBSITE TIP", variant=i)
+            self.assertEqual(data[:2], b"\xff\xd8")
+
+
 if __name__ == "__main__":
     unittest.main()

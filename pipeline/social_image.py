@@ -16,6 +16,13 @@ FONT_DIR = Path(__file__).parent / "fonts"
 SIZE = 1080
 MARGIN = 96
 TOP, BOTTOM = (7, 42, 77), (21, 83, 135)
+# Brand-blue gradient variants, picked from the title, so cards in the timeline don't all look the same.
+PALETTES = [
+    ((7, 42, 77), (21, 83, 135)),
+    ((10, 30, 56), (0, 102, 204)),
+    ((21, 83, 135), (7, 42, 77)),
+    ((5, 52, 70), (21, 83, 135)),
+]
 WHITE, ACCENT, SOFT = (255, 255, 255), (124, 196, 255), (190, 214, 238)
 GOLD = (244, 190, 60)
 
@@ -24,13 +31,23 @@ def _font(name, size):
     return ImageFont.truetype(str(FONT_DIR / name), size)
 
 
-def _gradient():
+def variant_for(title):
+    """Stable palette index for a title (the same post always gets the same card)."""
+    return int(hashlib.sha256(title.encode()).hexdigest()[:8], 16) % len(PALETTES)
+
+
+def _gradient(variant=0):
+    top, bottom = PALETTES[variant % len(PALETTES)]
     img = Image.new("RGB", (SIZE, SIZE))
     px = ImageDraw.Draw(img)
     for y in range(SIZE):
         t = y / (SIZE - 1)
-        px.line([(0, y), (SIZE, y)], fill=tuple(round(a + (b - a) * t) for a, b in zip(TOP, BOTTOM)))
-    return img
+        px.line([(0, y), (SIZE, y)], fill=tuple(round(a + (b - a) * t) for a, b in zip(top, bottom)))
+    # A soft ring in a different corner per variant.
+    ring = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    cx, cy = [(SIZE, 0), (0, SIZE), (SIZE, SIZE), (0, 0)][variant % 4]
+    ImageDraw.Draw(ring).ellipse([cx - 380, cy - 380, cx + 380, cy + 380], outline=(255, 255, 255, 34), width=46)
+    return Image.alpha_composite(img.convert("RGBA"), ring).convert("RGB")
 
 
 def _wrap(draw, words, font, max_w):
@@ -59,8 +76,8 @@ def split_title(title):
     return " ".join(words[:cut]), " ".join(words[cut:])
 
 
-def render_card(title, logo_bytes=None, kicker="NEW ON THE BLOG"):
-    img = _gradient()
+def render_card(title, logo_bytes=None, kicker="NEW ON THE BLOG", variant=None):
+    img = _gradient(variant_for(title) if variant is None else variant)
     d = ImageDraw.Draw(img)
     max_w = SIZE - 2 * MARGIN
     lead, tail = split_title(title)

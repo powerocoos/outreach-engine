@@ -36,12 +36,13 @@ const ingest = (e, posts) => call(e, "/api/social", { method: "POST", headers: {
 const act = (e, id, body) => call(e, `/api/social/${id}`, { method: "POST", headers: { authorization: basic, "x-requested-with": "review" }, body: JSON.stringify(body) });
 
 // Records Graph API calls and answers like Meta does.
-function mockMeta(t, { igFails = false } = {}) {
+function mockMeta(t, { igFails = false, photoFails = false } = {}) {
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url, init = {}) => {
     const u = String(url);
     calls.push({ url: u, body: init.body ? Object.fromEntries(new URLSearchParams(init.body)) : null });
     const reply = (o, s = 200) => new Response(JSON.stringify(o), { status: s });
+    if (u.includes("/PAGE1/photos")) return photoFails ? reply({ error: { message: "cannot fetch image" } }, 400) : reply({ id: "photo-5", post_id: "PAGE1_111" });
     if (u.includes("/PAGE1/feed")) return reply({ id: "PAGE1_111" });
     if (u.includes("/IG1/media_publish")) return igFails ? reply({ error: { message: "IG down" } }, 400) : reply({ id: "ig-222" });
     if (u.includes("/IG1/media")) return reply({ id: "creation-9" });
@@ -92,9 +93,10 @@ test("publish posts to Facebook and Instagram once, even if pressed twice", asyn
   const r = await (await act(e, 1, { action: "publish", channel: "both" })).json();
   assert.equal(r.status, "posted");
   assert.deepEqual(r.results, { facebook: "PAGE1_111", instagram: "ig-222" });
-  const fb = calls.find((c) => c.url.includes("/PAGE1/feed"));
-  assert.equal(fb.body.message, POST.fb_text);
-  assert.equal(fb.body.link, POST.link);
+  assert.equal(calls.some((c) => c.url.includes("/PAGE1/feed")), false, "a post with its own image goes out as a photo post");
+  const fb = calls.find((c) => c.url.includes("/PAGE1/photos"));
+  assert.equal(fb.body.url, POST.image_url);
+  assert.equal(fb.body.message, POST.fb_text + "\n\n" + POST.link);
   assert.equal(fb.body.access_token, "tok-secret");
   const ig = calls.find((c) => c.url.endsWith("/IG1/media"));
   assert.equal(ig.body.image_url, POST.image_url);
@@ -102,6 +104,18 @@ test("publish posts to Facebook and Instagram once, even if pressed twice", asyn
   const n = calls.length;
   await act(e, 1, { action: "publish", channel: "both" });
   assert.equal(calls.length, n, "second press must not call Meta again");
+});
+
+test("Facebook falls back to a link post when the picture cannot be used", async (t) => {
+  const e = env(META);
+  await ingest(e, [POST]);
+  await act(e, 1, { action: "approve" });
+  const calls = mockMeta(t, { photoFails: true });
+  const r = await (await act(e, 1, { action: "publish", channel: "facebook" })).json();
+  assert.equal(r.results.facebook, "PAGE1_111");
+  const fb = calls.find((c) => c.url.includes("/PAGE1/feed"));
+  assert.equal(fb.body.message, POST.fb_text);
+  assert.equal(fb.body.link, POST.link);
 });
 
 test("a failed channel keeps the post approved and a retry only redoes that channel", async (t) => {
@@ -230,11 +244,11 @@ test("cron publishes only due posts, once, and stops retrying after three failur
   await set(2, "2099-01-01T13:00:00Z");
   const calls = mockMeta(t);
   assert.equal(await publishDue(e, new Date("2026-10-15T13:00:30Z")), 1);
-  assert.equal(calls.filter((c) => c.url.includes("/PAGE1/feed")).length, 1);
+  assert.equal(calls.filter((c) => c.url.includes("/PAGE1/photos")).length, 1);
   assert.equal((await e.DB.prepare("SELECT status FROM social_posts WHERE id=1").first()).status, "posted");
   assert.equal((await e.DB.prepare("SELECT status FROM social_posts WHERE id=2").first()).status, "approved");
   assert.equal(await publishDue(e, new Date("2026-10-15T13:30:00Z")), 0); // nothing left that is due, nothing re-posted
-  assert.equal(calls.filter((c) => c.url.includes("/PAGE1/feed")).length, 1);
+  assert.equal(calls.filter((c) => c.url.includes("/PAGE1/photos")).length, 1);
 
   const f = env(META);
   await ingest(f, [POST]);

@@ -136,7 +136,16 @@ export async function publishFacebook(env, post) {
     const t = await graphCall(env, env.META_PAGE_ID, { fields: "access_token" }, "GET");
     if (t.access_token) pageToken = t.access_token;
   } catch { /* already a Page token, or no access: try the configured token as-is */ }
-  const data = await graphCall(env, `${env.META_PAGE_ID}/feed`, { message: post.fb_text, link: post.link || post.post_url }, "POST", pageToken);
+  const link = post.link || post.post_url;
+  // A link-only post shows the page's own social image, which is the same site image on every post. Posting the
+  // post's own picture (blog photo or branded card) with the link in the text keeps the timeline varied.
+  if (isHttps(post.image_url)) {
+    try {
+      const photo = await graphCall(env, `${env.META_PAGE_ID}/photos`, { url: post.image_url, message: `${post.fb_text}\n\n${link}` }, "POST", pageToken);
+      return photo.post_id || photo.id;
+    } catch { /* Facebook could not fetch the picture: fall back to a normal link post */ }
+  }
+  const data = await graphCall(env, `${env.META_PAGE_ID}/feed`, { message: post.fb_text, link }, "POST", pageToken);
   return data.id;
 }
 
