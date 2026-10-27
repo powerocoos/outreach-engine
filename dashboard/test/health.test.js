@@ -85,3 +85,19 @@ test("text alert is sent once per new problem", async () => {
   assert.equal(sent.length, 1);
   assert.match(sent[0], /Outreach run/);
 });
+
+test("test text: needs the header, reports missing settings, sends through Twilio", async (t) => {
+  const { handleTestSms } = await import("../src/index.js");
+  const req = (h = {}) => new Request("https://x/api/test-sms", { method: "POST", headers: h });
+  assert.equal((await handleTestSms(req(), {})).status, 403);
+  const none = await handleTestSms(req({ "x-requested-with": "review" }), {});
+  assert.equal(none.status, 502);
+  assert.match((await none.json()).error, /TWILIO_SID.*ALERT_PHONE/);
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, init) => { calls.push({ url: String(url), body: String(init.body) }); return new Response("{}", { status: 201 }); });
+  const env = { TWILIO_SID: "AC1", TWILIO_TOKEN: "t", TWILIO_FROM: "+15550001", ALERT_PHONE: "+15550002" };
+  const ok = await handleTestSms(req({ "x-requested-with": "review" }), env);
+  assert.equal(ok.status, 200);
+  assert.match(calls[0].url, /Accounts\/AC1\/Messages\.json/);
+  assert.match(calls[0].body, /To=%2B15550002/);
+});

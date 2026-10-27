@@ -27,7 +27,15 @@ const challenge = () =>
   });
 
 async function sendSms(env, body) {
-  if (!env.TWILIO_SID || !env.TWILIO_TOKEN || !env.TWILIO_FROM || !env.ALERT_PHONE) return false;
+  return (await sendSmsDetailed(env, body)).ok;
+}
+
+// Same send, but says why it failed (Twilio's own message; never any secret).
+async function sendSmsDetailed(env, body) {
+  if (!env.TWILIO_SID || !env.TWILIO_TOKEN || !env.TWILIO_FROM || !env.ALERT_PHONE) {
+    const missing = ["TWILIO_SID", "TWILIO_TOKEN", "TWILIO_FROM", "ALERT_PHONE"].filter((k) => !env[k]);
+    return { ok: false, error: "Not set: " + missing.join(", ") };
+  }
   const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_SID}/Messages.json`, {
     method: "POST",
     headers: {
@@ -36,7 +44,16 @@ async function sendSms(env, body) {
     },
     body: new URLSearchParams({ From: env.TWILIO_FROM, To: env.ALERT_PHONE, Body: body.slice(0, 300) }),
   });
-  return res.ok;
+  if (res.ok) return { ok: true };
+  let msg = "";
+  try { msg = (await res.json()).message || ""; } catch { /* not JSON */ }
+  return { ok: false, error: "Twilio said " + res.status + (msg ? ": " + String(msg).slice(0, 200) : "") };
+}
+
+export async function handleTestSms(request, env) {
+  if (!csrfOk(request)) return json({ error: "missing header" }, 403);
+  const r = await sendSmsDetailed(env, "Ocoos dashboard test: text alerts are working.");
+  return json(r, r.ok ? 200 : 502);
 }
 
 async function handleWebhook(request, env, ctx) {
@@ -529,6 +546,7 @@ export default {
     if (pathname === "/health") {
       return new Response(HEALTH_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
     }
+    if (pathname === "/api/test-sms" && request.method === "POST") return handleTestSms(request, env);
     if (pathname === "/api/health" && request.method === "GET") { await ensureSchema(env); return handleHealth(request, env); }
     if (pathname === "/funnel") {
       return new Response(FUNNEL_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });

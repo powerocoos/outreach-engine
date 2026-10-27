@@ -138,11 +138,13 @@ ${FONT_LINKS}<style>${BASE_CSS}
 ${navHtml("dashboard")}
 <h1>Run health</h1>
 <p class="sub">Whether the daily run happened, and whether the keys behind it still work. A red or amber bar shows at the top of every dashboard page when something needs attention.</p>
-<div class="bar"><button class="act" id="re" type="button">Check again</button></div><div id="list"><p class="empty">Checking&hellip;</p></div>
+<div class="bar"><button class="act" id="re" type="button">Check again</button> <button class="act" id="sms" type="button">Send a test text</button> <span class="meta" id="smsr"></span></div><div id="list"><p class="empty">Checking&hellip;</p></div>
 <script>
 function el(t,a,k){var e=document.createElement(t);for(var x in (a||{})){if(x==="text")e.textContent=a[x];else if(x==="cls")e.className=a[x];else e.setAttribute(x,a[x]);}(k||[]).forEach(function(c){e.appendChild(c)});return e}
 function load(){fetch("/api/health?fresh=1",{headers:{"x-requested-with":"review"}}).then(function(r){return r.json()}).then(function(d){
   var box=document.getElementById("list");box.textContent="";
   d.checks.forEach(function(c){var h=el("h2",{},[el("span",{cls:"dot "+c.status}),document.createTextNode(c.label)]);box.appendChild(el("div",{cls:"card"},[h,el("div",{cls:"meta",text:c.detail})]))})}).catch(function(){document.getElementById("list").textContent="Could not load."})}
-document.getElementById("re").onclick=load;load();
+document.getElementById("re").onclick=load;
+document.getElementById("sms").onclick=function(){var o=document.getElementById("smsr");o.textContent="Sending\u2026";fetch("/api/test-sms",{method:"POST",headers:{"x-requested-with":"review"}}).then(function(r){return r.json()}).then(function(d){o.textContent=d.ok?"Sent. Check your phone.":(d.error||"Failed")}).catch(function(){o.textContent="Could not reach the dashboard."})};
+load();
 </script></body></html>`;
