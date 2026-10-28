@@ -7,6 +7,13 @@ binding = "DB"
 database_name = "outreach"
 database_id = "2c7ac847-c075-4f30-9c2f-30c802b54d97"
 
+# The website chatbot's own database (Worker "website-chatbot"). The Chat leads page reads it and
+# marks leads contacted. Read-mostly: the dashboard only adds status/handled_at columns to its leads table.
+[[d1_databases]]
+binding = "CHAT_DB"
+database_name = "website-chatbot"
+database_id = "d45b138b-2ba1-4ef9-8db1-85687cbb4644"
+
 # Secrets (set with `wrangler secret put NAME`, never commit):
 #   DASHBOARD_PASSWORD  - Basic-auth password for the dashboard
 #   WEBHOOK_SECRET      - shared secret Instantly sends with webhooks
