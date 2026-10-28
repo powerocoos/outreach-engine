@@ -4,6 +4,7 @@ import { HEALTH_DDL, HEALTH_PAGE, handleRunReport, handleHealth, alertOnProblems
 import { FUNNEL_PAGE, handleFunnel } from "./funnel.js";
 import { SKIPPED_DDL, DRAFT_MIGRATIONS, REJECT_REASONS, SKIPPED_PAGE, handleSkippedIngest, handleSkippedOverrides, handleSkippedDone, handleSkippedList, handleSkippedAction } from "./skipped.js";
 import { HOT_PAGE, handleHotList, hotLeads, hasOwnerCookie, ownerCookieHeader, isBot, alertTextForView } from "./hot.js";
+import { CHAT_LEADS_PAGE, chatLeadsWaiting, handleChatLeadsList, handleChatLeadAction } from "./chatleads.js";
 import { AUDIT_DDL, handleAuditImagePut, handleAuditPut, handleAuditImageGet, handleAuditView } from "./audit_page.js";
 import { normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
 import { REVIEW_PAGE, NAV_CSS, MOBILE_CSS, navHtml } from "./review_page.js";
@@ -486,9 +487,10 @@ async function summary(env) {
     n("SELECT COUNT(*) n FROM social_posts WHERE status='pending'"),
   ]);
   const hot = (await hotLeads(env)).filter((l) => l.heat === "hot" && !l.replied).length;
-  const next = await env.DB.prepare("SELECT title, scheduled_at FROM social_posts WHERE status='approved' AND scheduled_at IS NOT NULL ORDER BY scheduled_at LIMIT 1").first();
+  const chatLeads = await chatLeadsWaiting(env);
+  const next =await env.DB.prepare("SELECT title, scheduled_at FROM social_posts WHERE status='approved' AND scheduled_at IS NOT NULL ORDER BY scheduled_at LIMIT 1").first();
   const run = await env.DB.prepare("SELECT ok, summary, created_at FROM run_log WHERE kind='outreach' ORDER BY id DESC LIMIT 1").first();
-  return { pending, approved, replies, skipped, social, hot, nextPost: next || null, lastRun: run || null };
+  return { pending, approved, replies, skipped, social, hot, chatLeads, nextPost: next || null, lastRun: run || null };
 }
 
 export default {
@@ -557,6 +559,11 @@ export default {
     }
     if (pathname === "/api/skipped" && request.method === "GET") { await ensureSchema(env); return handleSkippedList(env); }
     if ((m = pathname.match(/^\/api\/skipped\/(\d+)$/)) && request.method === "POST") { await ensureSchema(env); return handleSkippedAction(request, env, Number(m[1])); }
+    if (pathname === "/chat-leads") {
+      return new Response(CHAT_LEADS_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex" } });
+    }
+    if (pathname === "/api/chat-leads" && request.method === "GET") return handleChatLeadsList(env, new URL(request.url).searchParams.get("status"));
+    if ((m = pathname.match(/^\/api\/chat-leads\/(\d+)$/)) && request.method === "POST") return handleChatLeadAction(request, env, Number(m[1]));
     if (pathname === "/hot") {
       return new Response(HOT_PAGE, { headers: { "content-type": "text/html; charset=utf-8", "x-robots-tag": "noindex", "set-cookie": ownerCookieHeader() } });
     }
@@ -620,7 +627,7 @@ const table=(h,rows)=>'<table><tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr>'+
 const when=s=>{const d=new Date(String(s).replace(' ','T')+(String(s).length===19?'Z':''));return isNaN(d)?String(s||''):d.toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})};
 document.getElementById('today').textContent=new Date().toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'});
 fetch('/api/summary').then(r=>r.json()).then(s=>{
-  const cards=[[s.pending,'Drafts to review','/review'],[s.replies,'Replies to answer','/replies'],[s.hot,'Hot leads to call','/hot'],[s.approved,'Approved, not yet sent to Instantly','/review'],[s.skipped,'Skipped sites to check','/skipped'],[s.social,'Social posts to approve','/social']];
+  const cards=[[s.pending,'Drafts to review','/review'],[s.replies,'Replies to answer','/replies'],[s.chatLeads,'Chat leads to follow up','/chat-leads'],[s.hot,'Hot leads to call','/hot'],[s.approved,'Approved, not yet sent to Instantly','/review'],[s.skipped,'Skipped sites to check','/skipped'],[s.social,'Social posts to approve','/social']];
   const open=cards.filter(c=>c[0]>0);
   document.getElementById('needs').innerHTML=(open.length?open:[[0,'Nothing waiting on you','/review']]).map(c=>'<a class="tile act'+(c[0]?'':' calm')+'" href="'+c[2]+'"><b>'+esc(c[0]||'\u2713')+'</b><span>'+esc(c[1])+'</span></a>').join('');
   const rows=[];
