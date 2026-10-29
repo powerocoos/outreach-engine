@@ -2,6 +2,7 @@
 // Groups come from the draft's category and city; events are matched by contact email.
 import { BASE_CSS, FONT_LINKS, navHtml } from "./review_page.js";
 import { isBot } from "./hot.js";
+import { realReply } from "./logic.js";
 
 export const MIN_SAMPLE = 20;
 
@@ -43,7 +44,8 @@ export async function handleFunnel(request, env) {
   const by = new URL(request.url).searchParams.get("by") === "city" ? "city" : "category";
   const drafts = (await env.DB.prepare("SELECT contact_email, category, city, status FROM drafts").all()).results;
   const touches = (await env.DB.prepare(
-    "SELECT contact_email, event, raw FROM touches WHERE event IN ('sent','replied','booked','bounced','audit_viewed')").all()).results;
+    `SELECT contact_email, event, raw FROM touches WHERE event IN ('sent','replied','booked','bounced','audit_viewed')
+     AND (event<>'replied' OR ${realReply("contact_email")})`).all()).results;
   return new Response(JSON.stringify({ by, min_sample: MIN_SAMPLE, rows: buildFunnel(drafts, touches, by) }),
     { headers: { "content-type": "application/json", "cache-control": "no-store" } });
 }

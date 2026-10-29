@@ -6,7 +6,7 @@ import { SKIPPED_DDL, DRAFT_MIGRATIONS, REJECT_REASONS, SKIPPED_PAGE, handleSkip
 import { HOT_PAGE, handleHotList, hotLeads, hasOwnerCookie, ownerCookieHeader, isBot, alertTextForView } from "./hot.js";
 import { CHAT_LEADS_PAGE, chatLeadsWaiting, handleChatLeadsList, handleChatLeadAction } from "./chatleads.js";
 import { AUDIT_DDL, handleAuditImagePut, handleAuditPut, handleAuditImageGet, handleAuditView } from "./audit_page.js";
-import { normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
+import { realReply, normalizeEvent, eventsFromLead, shouldAlert, alertText, rate, safeEqual, isValidToken, toCsv, draftProblems, REVIEW_STATUSES, REVIEW_ACTIONS } from "./logic.js";
 import { REVIEW_PAGE, NAV_CSS, MOBILE_CSS, navHtml } from "./review_page.js";
 import { analyticsReport } from "./analytics.js";
 import { SOCIAL_DDL, SOCIAL_PAGE, handleSocialIngest, handleSocialKnown, handleSocialList, handleSocialAction, handleSocialImagePut, handleSocialImageGet, publishDue, SOCIAL_MIGRATIONS } from "./social.js";
@@ -502,7 +502,7 @@ async function stats(env) {
   const count = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).first()).n;
   const uniq = (ev) => count("SELECT COUNT(DISTINCT contact_email) n FROM touches WHERE event=?", ev);
   const [leads, sent, replied, bounced, booked, held, won, videoViews] = await Promise.all([
-    count("SELECT COUNT(*) n FROM leads"), uniq("sent"), uniq("replied"), uniq("bounced"),
+    count("SELECT COUNT(*) n FROM leads"), uniq("sent"), count(`SELECT COUNT(DISTINCT contact_email) n FROM touches WHERE event='replied' AND ${realReply("contact_email")}`), uniq("bounced"),
     count("SELECT COUNT(*) n FROM bookings"),
     count("SELECT COUNT(*) n FROM bookings WHERE held=1"),
     count("SELECT COUNT(*) n FROM bookings WHERE won=1"),
@@ -512,17 +512,17 @@ async function stats(env) {
     `SELECT l.hook_angle angle, COUNT(DISTINCT t.contact_email) sent,
             COUNT(DISTINCT CASE WHEN r.event='replied' THEN r.contact_email END) replies
      FROM touches t JOIN leads l ON l.id=t.lead_id
-     LEFT JOIN touches r ON r.contact_email=t.contact_email AND r.event='replied'
+     LEFT JOIN touches r ON r.contact_email=t.contact_email AND r.event='replied' AND ${realReply("r.contact_email")}
      WHERE t.event='sent' GROUP BY l.hook_angle ORDER BY replies DESC LIMIT 10`
   ).all();
   const byCity = await env.DB.prepare(
-    `SELECT l.city, COUNT(*) leads, SUM(l.status IN ('replied','booked')) responded
+    `SELECT l.city, COUNT(*) leads, SUM(l.status='booked' OR (l.status='replied' AND ${realReply("l.contact_email")})) responded
      FROM leads l GROUP BY l.city ORDER BY leads DESC LIMIT 10`
   ).all();
   const recent = await env.DB.prepare(
     `SELECT t.created_at, t.event, COALESCE(l.company, t.contact_email) who
      FROM touches t LEFT JOIN leads l ON l.id=t.lead_id
-     WHERE t.event IN ('replied','booked','bounced') ORDER BY t.id DESC LIMIT 15`
+     WHERE (t.event IN ('booked','bounced') OR (t.event='replied' AND ${realReply("t.contact_email")})) ORDER BY t.id DESC LIMIT 15`
   ).all();
   return {
     totals: { leads, sent, replied, bounced, booked, held, won, videoViews },

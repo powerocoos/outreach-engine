@@ -1,6 +1,7 @@
 // Hot leads: which prospects opened their private screenshot page (/a/<token>), and how often.
 // Views from link scanners and from the owner are ignored so the counts mean a real person looked.
 import { BASE_CSS, FONT_LINKS, navHtml } from "./review_page.js";
+import { realReply } from "./logic.js";
 
 const BOT_RE = /bot|crawl|spider|scan|preview|fetch|monitor|curl|wget|python|java\/|go-http|headless|phantom|slurp|proofpoint|mimecast|barracuda|symantec|safelinks|microsoft office|outlook-ios-preview|googleimageproxy|google-read-aloud|facebookexternalhit|whatsapp|slack|skype|telegram|discord|linkedin|twitter|pinterest|http-client|okhttp|axios|node-fetch|libwww|apache-httpclient/i;
 
@@ -51,7 +52,7 @@ export async function hotLeads(env) {
     const page = await env.DB.prepare(
       "SELECT token, company, website FROM audit_pages WHERE contact_email=? ORDER BY created_at DESC LIMIT 1").bind(email).first();
     const lead = await env.DB.prepare("SELECT id, company, phone, status FROM leads WHERE contact_email=?").bind(email).first();
-    const replied = await env.DB.prepare("SELECT 1 x FROM touches WHERE contact_email=? AND event IN ('replied','booked')").bind(email).first();
+    const replied = await env.DB.prepare(`SELECT 1 x FROM touches WHERE contact_email=? AND (event='booked' OR (event='replied' AND ${realReply("contact_email")}))`).bind(email).first();
     out.push({
       company: page?.company || lead?.company || "Unknown",
       website: page?.website || null,

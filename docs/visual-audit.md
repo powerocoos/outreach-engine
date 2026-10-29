@@ -78,3 +78,7 @@ Needs: the Instantly API key to include the `emails:read` scope (the page and He
 - Home page ("Today"): cards for what needs you (`GET /api/summary`), a Status panel (daily run, Instantly campaign, next social post, any failing check) and the results tiles once sending starts.
 - Review: tabs To review / Approved / Rejected / Sent to Instantly; each card shows trade, town and the 1-5 polish rating; Save edits appears only with the emails open; on phones sort and filter sit behind one button.
 - Funnel: Rejected % is the share of reviewed drafts you rejected (drafts still waiting are not counted).
+
+
+## Auto-replies are not counted as replies (2026-10-29)
+Instantly marks any incoming email as a reply, so out-of-office and bounce notices inflated the reply counts. The Replies page already files them as `auto_reply`. The Today tiles, Funnel, hook table, recent activity, city table and Hot leads now skip a lead's "replied" touch when every reply on file for that lead is an auto-reply (`realReply()` in `logic.js`). A lead with no reply text on file yet still counts, so nothing real is hidden while the reply sync is catching up.

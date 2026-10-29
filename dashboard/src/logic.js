@@ -104,3 +104,9 @@ export function eventsFromLead(lead) {
   if (lead.status === -2) ev.push("unsubscribed");
   return ev;
 }
+
+// SQL test for "this lead's reply is a real person": false only when every reply we have for the lead is an
+// automatic one (out of office, bounce notice). With no reply text on file yet it counts, so nothing is hidden by mistake.
+export const realReply = (col) =>
+  `(NOT EXISTS (SELECT 1 FROM replies ar WHERE ar.lead_email=${col} AND ar.category='auto_reply')
+    OR EXISTS (SELECT 1 FROM replies rr WHERE rr.lead_email=${col} AND COALESCE(rr.category,'')<>'auto_reply'))`;
