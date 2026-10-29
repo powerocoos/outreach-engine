@@ -86,7 +86,7 @@ export async function gatherHealth(env, now = new Date(), fetchFn = fetch) {
   if (env.INSTANTLY_API_KEY && env.INSTANTLY_CAMPAIGN_ID) {
     try {
       const r = await fetchFn(`https://api.instantly.ai/api/v2/campaigns/${env.INSTANTLY_CAMPAIGN_ID}`, { headers: { authorization: `Bearer ${env.INSTANTLY_API_KEY}` } });
-      checks.push(r.ok ? c("instantly", "Instantly", "ok", "Connected.") : c("instantly", "Instantly", "bad", `Instantly returned ${r.status}. The API key may be wrong or revoked.`));
+      checks.push(r.ok ? c("instantly", "Instantly", "ok", "Connected.") : c("instantly", "Instantly", "bad", r.status === 402 ? "Instantly returned 402 (payment required). Check the plan or billing in Instantly; the key is probably fine." : `Instantly returned ${r.status}. The API key may be wrong or revoked.`));
     } catch { checks.push(c("instantly", "Instantly", "warn", "Could not reach Instantly.")); }
   }
 
