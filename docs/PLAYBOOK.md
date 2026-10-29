@@ -11,7 +11,7 @@ This repo is public. Never commit secrets, API keys, passwords, tokens, or custo
 | Outreach pipeline | Finds local businesses, audits their sites, drafts a 3-email sequence from verified findings only | GitHub Actions (`.github/workflows/outreach.yml`) | `pipeline/`, `config/targets.json` |
 | Dashboard | Review and approve drafts, replies, hot leads, funnel, social posts, health, chat leads | Cloudflare Worker `outreach-dashboard`, custom domain `dashboard.ocooswebconsulting.com`, D1 database `outreach`, R2 bucket `outreach-media` | `dashboard/` |
 | Social autopost | Turns blog posts into Facebook and Instagram drafts, publishes approved ones | GitHub Action `social.yml` plus the Worker | `pipeline/social*.py`, `dashboard/src/social.js`, `docs/social-posts.md` |
-| Website chatbot | AI chat bubble for sales questions on a website; saves leads | Cloudflare Worker `website-chatbot`, custom domain `chat.ocooswebconsulting.com`, D1 database `website-chatbot` | a separate folder, not in this repo (see section 9) |
+| Website chatbot | AI chat bubble for sales questions on a website; saves leads | Cloudflare Worker `website-chatbot`, custom domain `chat.ocooswebconsulting.com`, D1 database `website-chatbot` | private repo `powerocoos/website-chatbot` (see section 9) |
 
 How they connect:
 
@@ -124,7 +124,7 @@ Set a Worker secret: `npx wrangler secret put NAME` (prompts for the value). Clo
 
 A small AI chat bubble for any website. One Worker serves every client; each client is one config file. It uses the Claude API (`claude-haiku-5-5` by default, about a third of a cent per conversation).
 
-**Source location:** the kit is a standalone folder (not in this repo): `package.json`, `wrangler.toml`, `schema.sql`, `src/index.js`, `src/prompt.js`, `src/clients/*.js`, `public/widget.js`, `public/demo.html`, `test/`. Ask the human where the current copy is. It should live in its own git repository so it can be backed up and reviewed like this one.
+**Source location:** the private GitHub repository `powerocoos/website-chatbot` (branch `main`). Contents: `package.json`, `wrangler.toml`, `schema.sql`, `src/index.js`, `src/prompt.js`, `src/clients/*.js`, `public/widget.js`, `public/demo.html`, `test/`, `AGENTS.md`. It is private because client briefs will live there. Same rules as this repo: work on a branch, open a pull request, run `npm test`, let the owner merge. Deploys are manual (`npm run deploy` by the owner); merging does not deploy.
 
 Key behaviours:
 - Routes: `GET /api/config?client=ID` (public display settings), `POST /api/chat?client=ID`, `GET /api/leads` (bearer `ADMIN_TOKEN`, JSON or `format=csv`), `GET /health`.
