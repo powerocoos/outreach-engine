@@ -1,5 +1,7 @@
 # Ocoos Web Consulting outreach engine
 
+For maintainers and AI assistants: start with `docs/PLAYBOOK.md`.
+
 Lead finder -> website audit -> Claude-written sequence (verified findings only) -> human review -> Instantly -> webhook -> dashboard + SMS alert.
 
 ## How a run works
