@@ -57,6 +57,7 @@ jobs:
           GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           PAGESPEED_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OUTREACH_ADVISOR: ${{ vars.OUTREACH_ADVISOR }}   # repo variable; unset or empty = advisor off
           DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
           API_TOKEN: ${{ secrets.API_TOKEN }}
           TARGET_CATEGORY: ${{ github.event.inputs.category }}
