@@ -27,6 +27,61 @@ const challenge = () =>
     headers: { "www-authenticate": 'Basic realm="Ocoos outreach"' },
   });
 
+// Wrong dashboard passwords are throttled per address: after AUTH_MAX_FAILS wrong attempts inside
+// AUTH_WINDOW_S seconds, every attempt from that address (even a correct one) gets 429 until the window passes.
+// Requests without an Authorization header (the browser's first prompt) are not counted.
+// If the failure table cannot be read or written, the normal password check still applies.
+const AUTH_MAX_FAILS = 10;
+const AUTH_WINDOW_S = 900;
+const authTableReady = new WeakSet();
+
+async function ensureAuthTable(env) {
+  if (authTableReady.has(env.DB)) return;
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS auth_failures (ip TEXT NOT NULL, at INTEGER NOT NULL)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS auth_failures_ip_at ON auth_failures (ip, at)").run();
+  authTableReady.add(env.DB);
+}
+
+// Returns a Response to send back, or null when the request may continue.
+async function authGate(request, env) {
+  const hasCreds = !!request.headers.get("authorization");
+  const ip = request.headers.get("cf-connecting-ip") || "unknown";
+  const now = Math.floor(Date.now() / 1000);
+  if (hasCreds && env.DB) {
+    try {
+      await ensureAuthTable(env);
+      const row = await env.DB.prepare("SELECT COUNT(*) n FROM auth_failures WHERE ip = ? AND at > ?").bind(ip, now - AUTH_WINDOW_S).first();
+      if ((row?.n || 0) >= AUTH_MAX_FAILS) {
+        return new Response("Too many wrong passwords from this address. Try again in 15 minutes.", {
+          status: 429, headers: { "retry-after": String(AUTH_WINDOW_S), "cache-control": "no-store" },
+        });
+      }
+    } catch { /* fall through to the normal password check */ }
+  }
+  if (basicAuthOk(request, env)) return null;
+  if (hasCreds && env.DB) {
+    try {
+      await ensureAuthTable(env);
+      await env.DB.prepare("INSERT INTO auth_failures (ip, at) VALUES (?, ?)").bind(ip, now).run();
+      await env.DB.prepare("DELETE FROM auth_failures WHERE at < ?").bind(now - 86400).run();
+    } catch { /* never block the 401 on bookkeeping */ }
+  }
+  return challenge();
+}
+
+// Headers for every response. Pages and APIs are never cached or framed; the public prospect pages
+// (/a/, /v/) and social images (/img/) keep normal caching because other people and Meta fetch them.
+function withSecurityHeaders(request, res) {
+  const h = new Headers(res.headers);
+  h.set("x-content-type-options", "nosniff");
+  h.set("x-frame-options", "DENY");
+  h.set("referrer-policy", "no-referrer");
+  h.set("strict-transport-security", "max-age=31536000");
+  const { pathname } = new URL(request.url);
+  if (!/^\/(a|v|img)\//.test(pathname) && !h.has("cache-control")) h.set("cache-control", "no-store");
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+}
+
 async function sendSms(env, body) {
   return (await sendSmsDetailed(env, body)).ok;
 }
@@ -493,7 +548,7 @@ async function summary(env) {
   return { pending, approved, replies, skipped, social, hot, chatLeads, nextPost: next || null, lastRun: run || null };
 }
 
-export default {
+const app = {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(syncInstantly(env, ctx).catch(() => {}));
     ctx.waitUntil(ensureSchema(env).then(() => publishDue(env)).catch(() => {}));
@@ -533,7 +588,8 @@ export default {
     if ((m = pathname.match(/^\/v\/([0-9a-f]{32})\.mp4$/)) && request.method === "GET") return handleMediaFile(request, env, m[1]);
     if ((m = pathname.match(/^\/v\/([0-9a-f]{32})$/)) && request.method === "GET") return handleMediaView(request, env, ctx, m[1]);
 
-    if (!basicAuthOk(request, env)) return challenge();
+    const denied = await authGate(request, env);
+    if (denied) return denied;
     if (pathname === "/api/stats") return json(await stats(env));
     if (pathname === "/api/summary" && request.method === "GET") { await ensureSchema(env); return json(await summary(env)); }
     if (pathname === "/review") {
@@ -594,6 +650,11 @@ export default {
     }
     return new Response("Not found", { status: 404 });
   },
+};
+
+export default {
+  scheduled: app.scheduled,
+  fetch: async (request, env, ctx) => withSecurityHeaders(request, await app.fetch(request, env, ctx)),
 };
 
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">

@@ -141,3 +141,7 @@ CREATE TABLE IF NOT EXISTS replies (
   status TEXT NOT NULL DEFAULT 'new',   -- new | done
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Wrong dashboard passwords, per address (see authGate in src/index.js). Created on first use for existing databases.
+CREATE TABLE IF NOT EXISTS auth_failures (ip TEXT NOT NULL, at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS auth_failures_ip_at ON auth_failures (ip, at);
