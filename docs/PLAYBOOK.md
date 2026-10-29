@@ -45,7 +45,7 @@ If your tooling cannot use the GitHub GraphQL API, use the REST API instead: `gh
 ## 4. Running the tests
 
 ```
-cd dashboard && npm install && npm test        # 75 tests (node:test, D1 shim, mocked fetch)
+cd dashboard && npm install && npm test        # 82 tests (node:test, D1 shim, mocked fetch)
 python3 -I -m unittest discover -s tests       # 89 tests
 ```
 
@@ -73,6 +73,9 @@ Entry point `dashboard/src/index.js` routes every request. Each feature is its o
 Conventions to follow:
 
 - **Auth:** every page and API requires HTTP Basic auth (password in secret `DASHBOARD_PASSWORD`). Machine endpoints (`/api/drafts`, `/api/state`, `/api/runs`, ...) use a bearer token (`API_TOKEN`).
+- **Login protection:** after 10 wrong passwords from one address within 15 minutes, every attempt from that address gets 429 (`authGate` in `index.js`, failures stored in D1 table `auth_failures`). Requests with no credentials are not counted. If the table cannot be read, the normal password check still applies. Do not remove this when editing the auth block.
+- **Response headers:** `withSecurityHeaders` adds `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, HSTS, and `Cache-Control: no-store` to everything except the public paths `/a/`, `/v/` and `/img/` (prospects and Meta fetch those, so they stay cacheable).
+- **Public and machine paths** are handled before the password check in `index.js`: `/a/<token>`, `/v/<token>`, `/img/social/<token>.jpg`, and bearer-token endpoints used by GitHub Actions and Instantly (`/api/drafts`, `/api/state`, `/api/runs`, `/api/skipped` POST, `/api/social` POST, `/webhook/instantly`, uploads). Anything new that a person opens in a browser belongs after the check.
 - **State-changing browser calls** send the header `x-requested-with: review` (CSRF guard). New POST handlers must check it.
 - **Pages are JavaScript template literals.** Do not use backticks or `${` inside the client-side script. Write `\\n` and `\\u00b7` in the source so the browser receives an escape, not a raw newline (a raw newline inside a JS string breaks the whole script).
 - **Schema:** `dashboard/schema.sql` for fresh installs, plus `ensureSchema` and each module's `*_MIGRATIONS` (an `ALTER TABLE` wrapped in try/catch) for existing databases.
