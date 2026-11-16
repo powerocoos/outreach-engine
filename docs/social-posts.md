@@ -75,3 +75,7 @@ shown in Eastern Time; stored as UTC.
 
 ## Pictures (2026-10-24)
 Facebook posts used to go out as link-only, so Facebook showed the page's own social image, the same site image on every post. Now a post with an image is published to Facebook as a photo post (`/photos`, text plus the link) using its own picture: the blog photo, or the branded card for tips, teardowns and posts without a usable JPEG. If Facebook cannot fetch the picture, it falls back to the old link post. Cards use one of four brand-blue colour variants chosen from the title (`social_image.PALETTES`), so they are not all identical. Posts already published are not changed.
+
+
+## Google Business Profile, by hand (2026-11-16)
+Google declined the Business Profile API access request, so posts to the Google listing are made by hand. Approved and posted cards on `/social` have a "Google Business Profile (post by hand)" row: Copy Google text (the Facebook text, which already has no phone numbers or URLs), Copy button link (the post link with `utm_source=gbp&utm_medium=social` added when it has no utm_source), Open image, and Mark done on Google (undo), which sets `social_posts.google_done`. Nothing is sent to Google from the dashboard. If API access is granted later, add a publisher next to `publishFacebook` and keep the flag.

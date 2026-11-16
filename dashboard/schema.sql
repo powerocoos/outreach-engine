@@ -94,7 +94,8 @@ CREATE TABLE IF NOT EXISTS social_posts (
   attempts INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   decided_at TEXT,
-  posted_at TEXT
+  posted_at TEXT,
+  google_done INTEGER NOT NULL DEFAULT 0  -- posted to Google Business Profile by hand
 );
 CREATE INDEX IF NOT EXISTS idx_social_status ON social_posts(status);
 

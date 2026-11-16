@@ -24,6 +24,7 @@ export const SOCIAL_MIGRATIONS = [
   "ALTER TABLE social_posts ADD COLUMN scheduled_at TEXT",
   "ALTER TABLE social_posts ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE social_posts ADD COLUMN kind TEXT NOT NULL DEFAULT 'blog'",
+  "ALTER TABLE social_posts ADD COLUMN google_done INTEGER NOT NULL DEFAULT 0",
 ];
 export const SOCIAL_KINDS = ["blog", "tip", "teardown"];
 
@@ -213,7 +214,7 @@ export async function handleSocialList(request, env) {
   return json({ counts, posts, connected: configured(env), next_slot_label: slot ? utcToEastern(slot).label : "" });
 }
 
-const ACTIONS = ["save", "approve", "reject", "reset", "publish", "mark_posted", "schedule"];
+const ACTIONS = ["save", "approve", "reject", "reset", "publish", "mark_posted", "schedule", "google_done"];
 
 export async function handleSocialAction(request, env, id) {
   if (!csrfOk(request)) return json({ error: "missing header" }, 403);
@@ -247,6 +248,12 @@ export async function handleSocialAction(request, env, id) {
     }
     await env.DB.prepare("UPDATE social_posts SET scheduled_at=?, attempts=0, error=NULL WHERE id=?").bind(at, id).run();
     return json({ ok: true, scheduled_at: at, label: at ? utcToEastern(at).label : null });
+  }
+  if (body.action === "google_done") {
+    // Google Business Profile posts are made by hand (the API request was declined), so this only records that it was done.
+    if (!["approved", "posted"].includes(p.status)) return json({ error: "approve it first" }, 409);
+    await env.DB.prepare("UPDATE social_posts SET google_done=? WHERE id=?").bind(body.done === false ? 0 : 1, id).run();
+    return json({ ok: true, google_done: body.done === false ? 0 : 1 });
   }
   if (body.action === "publish") {
     await env.DB.prepare("UPDATE social_posts SET attempts=0 WHERE id=?").bind(id).run();
@@ -352,6 +359,16 @@ function card(p){
     row.appendChild(btn("Save edits","","save",0));row.appendChild(btn("Mark as posted","ok","mark_posted",1));row.appendChild(btn("Move back to pending","","reset",1))}
   else if(p.status==="rejected"){row.appendChild(btn("Move back to pending","","reset",1))}
   c.appendChild(row);c.appendChild(msg);
+  if(p.status==="approved"||p.status==="posted"){
+    var g=el("div",{cls:"row"});
+    var gl=p.link||p.post_url;if(gl&&gl.indexOf("utm_source=")<0)gl+=(gl.indexOf("?")<0?"?":"&")+"utm_source=gbp&utm_medium=social";
+    g.appendChild(el("span",{cls:"meta",text:"Google Business Profile (post by hand):"}));
+    g.appendChild(copyBtn("Copy Google text",function(){return fb.value}));
+    g.appendChild(copyBtn("Copy button link",function(){return gl}));
+    if(p.image_url)g.appendChild(el("a",{href:p.image_url,target:"_blank",rel:"noopener noreferrer",cls:"act",text:"Open image"}));
+    var gd=el("button",{cls:"act"+(p.google_done?" ok":""),type:"button",text:p.google_done?"Done on Google (undo)":"Mark done on Google"});
+    gd.onclick=function(){send("google_done",{done:!p.google_done}).then(function(x){if(x.ok)load()})};
+    g.appendChild(gd);c.appendChild(g)}
   if(p.error){c.appendChild(el("div",{cls:"msg",text:"Last attempt: "+p.error}))}
   if(p.fb_post_id||p.ig_post_id){c.appendChild(el("div",{cls:"ids",text:"Posted"+(p.fb_post_id?" \\u00b7 Facebook "+p.fb_post_id:"")+(p.ig_post_id?" \\u00b7 Instagram "+p.ig_post_id:"")}))}
   return c}

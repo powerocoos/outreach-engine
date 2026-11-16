@@ -283,3 +283,18 @@ test("tips and site checks are stored with their kind, and the known list report
   const known = await (await call(e, "/api/social/known", { headers: { authorization: "Bearer tok" } })).json();
   assert.equal(known.queued_stream, 1);
 });
+
+
+test("Google Business Profile: by-hand done flag works for approved posts only and can be undone", async () => {
+  const e = env(META);
+  await ingest(e, [POST]);
+  const early = await act(e, 1, { action: "google_done" });
+  assert.equal(early.status, 409, "a pending post cannot be marked yet");
+  await act(e, 1, { action: "approve" });
+  const done = await (await act(e, 1, { action: "google_done", done: true })).json();
+  assert.equal(done.google_done, 1);
+  const list = await (await call(e, "/api/social?status=approved", { headers: { authorization: basic } })).json();
+  assert.equal(list.posts[0].google_done, 1);
+  const undone = await (await act(e, 1, { action: "google_done", done: false })).json();
+  assert.equal(undone.google_done, 0);
+});
